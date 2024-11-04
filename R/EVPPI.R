@@ -31,6 +31,8 @@
 #'                                        (d == 2)*Theta_int[,"theta_B"] +
 #'                                        (d == 3)*Theta_rem
 #' N <- 10000
+#' Theta <- matrix(c(rbeta(N, 2, 3), rbeta(N, 2, 3), rbeta(N, 2, 3)),
+#'                 nrow = N, ncol = 3, dimnames = list(NULL, c("theta_A", "theta_B", "theta_C")))
 #' Theta_int <- Theta[,c("theta_A", "theta_B")]
 #' Theta_rem <- matrix(Theta[,"theta_C"], nrow = N, ncol = 1, dimnames = list(NULL, "theta_C"))
 #' cond_fun <- function(J, Theta_int) rbeta(J, 2, 3)
