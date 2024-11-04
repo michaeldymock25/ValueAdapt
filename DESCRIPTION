@@ -1,0 +1,15 @@
+Package: ValueAdapt
+Title: The Value-Driven Adaptive Design
+Version: 0.0.1
+Authors@R: 
+    person("Michael", "Dymock", , "michael.dymock1@hotmail.com", role = c("aut", "cre"),
+           comment = c(ORCID = "0000-0003-4881-2860"))
+Description: Contains functions to compute value of information metrics applied to an adaptive trial design.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.2
+Imports: 
+    EVSI,
+    mgcv,
+    stats
