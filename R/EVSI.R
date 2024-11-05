@@ -3,6 +3,7 @@
 #' @description Computes the expected value of sample information using either a Monte-Carlo, non-parametric or moment matching approximation method
 #' @import EVSI
 #' @import mgcv
+#' @import RhpcBLASctl
 #' @import stats
 #' @param D Number of decision options
 #' @param U Utility function that depends on the decision option and parameters
@@ -110,6 +111,7 @@ evsi <- function(D, U, Theta, method = "NP", J = 10000, K = 10000, samp_fun = NU
     colnames(summ_stats) <- colnames(samp_out)
     g_hat <- vector("list", D)
     g_hat[[1]] <- rep(0, N)
+    RhpcBLASctl::blas_set_num_threads(1)
     for(d in 2:D) g_hat[[d]] <- gam(update(formula(INB[, d] ~ .), formula(paste(".~", model))), data = as.data.frame(summ_stats))$fitted
     EVSI <- mean(do.call(pmax, g_hat)) - max(unlist(lapply(g_hat, mean)))
   } else if(method == "MM"){

@@ -2,6 +2,7 @@
 #' @title evppi
 #' @description Computes the expected value of partial perfect information using either a Monte-Carlo or non-parametric approximation method
 #' @import mgcv
+#' @import RhpcBLASctl
 #' @import stats
 #' @param D Number of decision options
 #' @param U Utility function that depends on the decision option and parameters
@@ -70,6 +71,7 @@ evppi <- function(D, U, Theta_int, Theta_rem, method = "NP", J = 10000, K = 1000
   } else if(method == "NP"){
     INB_partial <- matrix(data = NA, nrow = N, ncol = D)
     INB_partial[,1] <- 0
+    RhpcBLASctl::blas_set_num_threads(1)
     for(d in 2:D) INB_partial[,d] <- gam(update(formula(INB[, d] ~ .), formula(paste(".~", model))), data = as.data.frame(Theta_int))$fitted
     EVPPI <- mean(apply(INB_partial, 1, max)) - max(colMeans(INB_partial))
 
