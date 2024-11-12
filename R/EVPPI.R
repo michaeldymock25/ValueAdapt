@@ -45,7 +45,6 @@ evppi <- function(D, U, Theta_int, Theta_rem, method = "NP", J = 10000, K = 1000
 
   if(!(method %in% c("MC", "NP"))) stop("Method must be specified as MC or NP")
   if(nrow(Theta_int) != nrow(Theta_rem)) stop("Theta_int and Theta_rem must contain the same number of draws")
-  N <- nrow(Theta_int)
 
   ## compute incremental net benefit using utility function U for each decision option d
 
@@ -54,6 +53,7 @@ evppi <- function(D, U, Theta_int, Theta_rem, method = "NP", J = 10000, K = 1000
 
   ## estimate the expected value of partial perfect information
 
+  N <- nrow(Theta_int)
   if(method == "MC"){
     if(N < K) stop("The number of parameter draws must be greater than or equal to K")
     Theta_int_redraw <- as.matrix(Theta_int[sample.int(N, size = K),])

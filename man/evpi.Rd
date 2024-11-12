@@ -17,7 +17,7 @@ evpi(D, U, Theta)
 Expected value of perfect information
 }
 \description{
-Computes the expected value of perfect information use a Monte-Carlo approximation
+Computes the expected value of perfect information using a Monte-Carlo approximation method
 }
 \examples{
 # one parameter, two decision options

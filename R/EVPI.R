@@ -1,6 +1,6 @@
 
 #' @title evpi
-#' @description Computes the expected value of perfect information use a Monte-Carlo approximation
+#' @description Computes the expected value of perfect information using a Monte-Carlo approximation method
 #' @param D Number of decision options
 #' @param U Utility function that depends on the decision option and parameters
 #' @param Theta Named matrix of parameter draws from prior/posterior distribution
