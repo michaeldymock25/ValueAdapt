@@ -52,7 +52,7 @@ post_vis <- bind_rows(post_vis |> mutate(Scenario = "Scenario 1"),
                       post_vis_scen1,
                       post_vis_scen2)
 post_vis$Analysis <- factor(post_vis$Analysis, labels = c("Prior", "Analysis 1", "Analysis 2", "Analysis 3", "Analysis 4"))
-post_vis$int <- ifelse(post_vis$Scenario == "Scenario 1", 0.08, 0)
+post_vis$int <- ifelse(post_vis$Scenario == "Scenario 1", 0.08, 0.02)
 
 jpeg("Examples/RSV/Figure 2.jpg", width = 6, height = 7, units = "in", res = 1000)
 
