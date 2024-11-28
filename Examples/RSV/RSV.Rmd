@@ -66,13 +66,13 @@ defn <- matrix(c(
   "$j \\in \\{1,2,\\ldots,J\\}$"                     , "A specific analysis from $J$ analyses",
   "$t_j$"                                            , "Time of analysis $j$",
   "$n_j$"                                            , "Number of participants recruited between analysis $j-1$ and $j$",
-  "$\\bar{n}_j = \\sum_{j^\\ast=1}^j n_{j^\\ast}$"   , "Number of participants recruited up until analysis $j$",
-  "$\\boldsymbol{x}_{1:\\bar{n}_j}$"                 , "Observed data for analysis $j$",
-  "$\\boldsymbol{X}_{(\\bar{n}_j+1):\\bar{n}_{j+1}}$", "Yet to be observed data for the next $n_{j+1}$ participants",
+  "$N_j = \\sum_{j^\\ast=1}^j n_{j^\\ast}$"          , "Number of participants recruited up until analysis $j$",
+  "$\\boldsymbol{x}_{1:N_j}$"                        , "Observed data for analysis $j$",
+  "$\\boldsymbol{X}_{(N_j+1):N_{j+1}}$"              , "Yet to be observed data for the next $n_{j+1}$ participants",
   "$\\delta$"                                        , "Fixed trial start-up cost",
   "$\\gamma$"                                        , "Trial per-participant cost",
   "$\\boldsymbol{p}$"                                , "Proportions denoting current implementation of decision options",
-  "$\\text{E}_{\\boldsymbol{\\Theta}|\\boldsymbol{x}_{1:\\bar{n}_j}} \\left[\\sum_{d=1}^D p_d \\times NB(d,\\boldsymbol{\\Theta},t_j,t_{j+1})\\right] + \\text{E}_{\\boldsymbol{X}_{(\\bar{n}_j+1):\\bar{n}_{j+1}}} \\left[\\underset{d}{\\text{max }} \\text{E}_{\\boldsymbol{\\Theta}|\\boldsymbol{x}_{1:\\bar{n}_j},\\boldsymbol{X}_{(\\bar{n}_j+1):\\bar{n}_{j+1}}} [NB(d,\\boldsymbol{\\Theta},t_{j+1},t_H)]\\right] - \\underset{d}{\\text{max }} \\text{E}_{\\boldsymbol{\\Theta}|\\boldsymbol{x}_{1:\\bar{n}_j}} \\left[NB(d,\\boldsymbol{\\Theta},t_j,t_H)\\right] - (\\delta + \\gamma \\times \\bar{n}_j)$"
+  "$\\text{E}_{\\boldsymbol{\\Theta}|\\boldsymbol{x}_{1:N_j}} \\left[\\sum_{d=1}^D p_d \\times NB(d,\\boldsymbol{\\Theta},t_j,t_{j+1})\\right] + \\text{E}_{\\boldsymbol{X}_{(N_j+1):N_{j+1}}} \\left[\\underset{d}{\\text{max }} \\text{E}_{\\boldsymbol{\\Theta}|\\boldsymbol{x}_{1:N_j},\\boldsymbol{X}_{(N_j+1):N_{j+1}}} [NB(d,\\boldsymbol{\\Theta},t_{j+1},t_H)]\\right] - \\underset{d}{\\text{max }} \\text{E}_{\\boldsymbol{\\Theta}|\\boldsymbol{x}_{1:N_j}} \\left[NB(d,\\boldsymbol{\\Theta},t_j,t_H)\\right] - (\\delta + \\gamma \\times n_j)$"
                                                      , "Expected net benefit of sampling between analyses $j$ and $j+1$"),
                nrow = 23, ncol = 2, byrow = TRUE)
 
@@ -116,7 +116,7 @@ prop <- c(1,0)
 Suppose that a potential trial comparing the strategies head-to-head aims to recruit up to a maximum of 1,000 mother-infant dyads, denoted $i_k$, randomised to each strategy $k \in \{\text{II},\text{MV}\}$ and is estimated have a fixed start-up cost ($\delta$) of \$1 million and a per-dyad cost ($\gamma$) of \$2,000 (we assume the per-dyad cost is paid immediately upon recruitment and that costs cannot be saved by reducing participant follow-up). Dyad $i_k$ has outcome $x_{i_k}$, where $x_{i_k} = 1$ if the infant from dyad $i_k$ experiences a MA-RSV within the first 12 months and $x_{i_k} = 0$ otherwise. Analyses are conducted once every 250 dyads per strategy have been recruited, which we assume will take 12 months, and reached their 12 month endpoint (i.e., $n_{1k} = n_{2k} = n_{3k} = n_{4k} = 500$). The following Binomial model is implemented at analysis $j$:
 
 $$
-\sum_{i_k=1}^{\bar{n}_{jk}} X_{i_k} \sim \text{Binomial}(\bar{n}_{jk}, p_k) \quad \forall k \in \{\text{II},\text{MV}\}
+\sum_{i_k=1}^{N_{jk}} X_{i_k} \sim \text{Binomial}(N_{jk}, p_k) \quad \forall k \in \{\text{II},\text{MV}\}
 $$
 
 We assume weakly informative Beta(4,20) priors for both unknown parameters $p_\text{II}$ and $p_\text{MV}$. For a value-driven adaptive design, the trial is stopped at an analysis if the ENBS of proceeding to the next analysis (continuing the trial) is below zero. If so, the optimal decision option may be chosen now or once all current participants have completed follow-up.
@@ -189,7 +189,7 @@ ENBS_0 <- enb_sample(D = D, U = U, Theta = prior, t = t_0,
 ENBS_0
 ```
 
-The trial now starts and we simulate data for full trial ($N = 2,000$) and conduct the first analysis ($n_{1k} = n_{2k} = 250$). The data generation relies on the "true" parameters which depend on the given scenario. Note that dyads are randomised with equal allocation (i.e., there will be $N/2$ dyads randomised to each strategy) and the simulated data is summarised as the sum of events at each analysis (i.e., $\sum_{i=1}^{\bar{n}_{jk}} x_i$).
+The trial now starts and we simulate data for full trial ($N = 2,000$) and conduct the first analysis ($n_{1k} = n_{2k} = 250$). The data generation relies on the "true" parameters which depend on the given scenario. Note that dyads are randomised with equal allocation (i.e., there will be $N/2$ dyads randomised to each strategy) and the simulated data is summarised as the sum of events at each analysis (i.e., $\sum_{i=1}^{N_{jk}} x_i$).
 
 We consider the following two scenarios: 
 
