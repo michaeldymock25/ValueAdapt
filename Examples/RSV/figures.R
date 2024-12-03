@@ -25,7 +25,7 @@ dat_vis <- data.frame(n = rep(n, 2),
                       value = c(out_sample, out_perfect),
                       grp = rep(c("Sample information", "Perfect information"), each = length(n)))
 
-jpeg("Examples/RSV/Figure 1.jpg", width = 6, height = 7, units = "in", res = 1000)
+tiff("Examples/RSV/Figure 1.tiff", width = 6, height = 7, units = "in", res = 1000)
 
 ggplot(dat_vis, aes(x = n, y = value, linetype = grp)) +
   geom_line() +
@@ -54,7 +54,7 @@ post_vis <- bind_rows(post_vis |> mutate(Scenario = "Scenario 1"),
 post_vis$Analysis <- factor(post_vis$Analysis, labels = c("Prior", "Analysis 1", "Analysis 2", "Analysis 3", "Analysis 4"))
 post_vis$int <- ifelse(post_vis$Scenario == "Scenario 1", 0.08, 0.02)
 
-jpeg("Examples/RSV/Figure 2.jpg", width = 6, height = 7, units = "in", res = 1000)
+tiff("Examples/RSV/Figure 2.tiff", width = 6, height = 7, units = "in", res = 1000)
 
 ggplot(post_vis, aes(x = value)) +
   facet_grid(Analysis ~ Scenario) +
@@ -73,7 +73,7 @@ net_benefit_vis <- bind_rows(net_benefit_vis |> mutate(Scenario = "Scenario 1"),
                              INMB_2 |> mutate(Scenario = "Scenario 2") |> rename(INMB = x))
 net_benefit_vis$Analysis <- factor(net_benefit_vis$Analysis, levels = c("Prior", "Analysis 1", "Analysis 2", "Analysis 3", "Analysis 4"))
 
-jpeg("Examples/RSV/Figure 3.jpg", width = 6, height = 7, units = "in", res = 1000)
+tiff("Examples/RSV/Figure 3.tiff", width = 6, height = 7, units = "in", res = 1000)
 
 ggplot(net_benefit_vis, aes(x = INMB)) +
   facet_grid(Analysis ~ Scenario) +
@@ -86,7 +86,7 @@ ggplot(net_benefit_vis, aes(x = INMB)) +
 
 dev.off()
 
-jpeg("Examples/RSV/Figure 4.jpg", width = 6, height = 7, units = "in", res = 1000)
+tiff("Examples/RSV/Figure 4.tiff", width = 6, height = 7, units = "in", res = 1000)
 
 ggplot(sims_summ, aes(x = Analysis, y = Prop, group = Scenario, colour = Scenario)) +
   geom_line() +
