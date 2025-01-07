@@ -10,8 +10,8 @@ evppi(
   Theta_int,
   Theta_rem,
   method = "NP",
-  J = 10000,
   K = 10000,
+  cond_args = list(),
   cond_fun = NULL,
   model = NULL
 )
@@ -27,13 +27,13 @@ evppi(
 
 \item{method}{Approximation method. Either MC for Monte-Carlo or NP for non-parametric (default)}
 
-\item{J}{Number of inner Monte Carlo loops. Only required for the Monte Carlo approximation method.}
-
 \item{K}{Number of outer Monte Carlo loops. Only required for the Monte Carlo approximation method.}
 
-\item{cond_fun}{A function that generates sets of Theta_rem conditional on the current values of Theta_int. The first argument must be J and the second must be a parameter vector. Only required for the Monte Carlo approximation method.}
+\item{cond_args}{List of arguments to be passed to cond_fun(). Defaults to an empty list.}
 
-\item{model}{Generalised additive regression model specification (formula). Only required for the non-parametric approximation method.}
+\item{cond_fun}{A function that generates sets of Theta_rem conditional on the current values of Theta_int. The only argument should be a list containing the parameter draws and additional parameters. Only required for the Monte Carlo approximation method.}
+
+\item{model}{Generalised additive regression model specification (formula). Only required for the non-parametric approximation method. Should be a function of the parameters of interest.}
 }
 \value{
 Expected value of partial perfect information. If using the non-parametric method, a list will be returned containing the expected value of partial perfect information in addition to the partial incremental net benefit.
@@ -44,12 +44,11 @@ Computes the expected value of partial perfect information using either a Monte-
 \examples{
 # two parameters (one parameter of interest), two decision options
 D <- 2
-U <- function(d, Theta_int, Theta_rem) (d == 1)*Theta_int +
-                                       (d == 2)*Theta_rem
+U <- function(d, Theta_int, Theta_rem) (d == 1)*Theta_int + (d == 2)*Theta_rem
 N <- 10000
 Theta_int <- matrix(rbeta(N, 2, 3), nrow = N, ncol = 1, dimnames = list(NULL, "theta_A"))
 Theta_rem <- matrix(rbeta(N, 2, 3), nrow = N, ncol = 1, dimnames = list(NULL, "theta_B"))
-cond_fun <- function(J, Theta_int) rbeta(J, 2, 3)
+cond_fun <- function(args) rbeta(args$N, 2, 3)
 evppi(D, U, Theta_int, Theta_rem, method = "MC", cond_fun = cond_fun)
 evppi(D, U, Theta_int, Theta_rem, method = "NP", model = "s(theta_A)")
 
@@ -63,7 +62,7 @@ Theta <- matrix(c(rbeta(N, 2, 3), rbeta(N, 2, 3), rbeta(N, 2, 3)),
                 nrow = N, ncol = 3, dimnames = list(NULL, c("theta_A", "theta_B", "theta_C")))
 Theta_int <- Theta[,c("theta_A", "theta_B")]
 Theta_rem <- matrix(Theta[,"theta_C"], nrow = N, ncol = 1, dimnames = list(NULL, "theta_C"))
-cond_fun <- function(J, Theta_int) rbeta(J, 2, 3)
+cond_fun <- function(args) rbeta(args$N, 2, 3)
 evppi(D, U, Theta_int, Theta_rem, method = "MC", cond_fun = cond_fun)
 evppi(D, U, Theta_int, Theta_rem, method = "NP", model = "te(theta_A, theta_B)")
 }

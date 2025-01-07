@@ -13,8 +13,8 @@ enb_partial_perfect(
   prop,
   cost,
   method = "NP",
-  J = 10000,
   K = 10000,
+  cond_args = list(),
   cond_fun = NULL,
   model = NULL
 )
@@ -36,13 +36,13 @@ enb_partial_perfect(
 
 \item{method}{Approximation method. Either MC for Monte-Carlo, NP for non-parametric (default) or MM for moment matching. The moment matching method requires the evppi function to be run in advance using the non-parametric method to generate INB_partial.}
 
-\item{J}{Number of inner Monte Carlo loops. Only required for the Monte Carlo approximation method.}
-
 \item{K}{Number of outer Monte Carlo loops. Only required for the Monte Carlo approximation method.}
 
-\item{cond_fun}{A function that generates sets of Theta_rem conditional on the current values of Theta_int. The first argument must be J and the second must be a parameter vector. Only required for the Monte Carlo approximation method.}
+\item{cond_args}{List of arguments to be passed to cond_fun(). Defaults to an empty list.}
 
-\item{model}{Generalised additive regression model specification (formula). Only required for the non-parametric approximation method.}
+\item{cond_fun}{A function that generates sets of Theta_rem conditional on the current values of Theta_int. The only argument should be a list containing the parameter draws and additional parameters. Only required for the Monte Carlo approximation method.}
+
+\item{model}{Generalised additive regression model specification (formula). Only required for the non-parametric approximation method. Should be a function of the parameters of interest.}
 }
 \value{
 Expected net benefit of collecting partial perfect information
@@ -54,15 +54,14 @@ Computes the expected net benefit of collecting partial perfect information usin
 # two parameters (one parameter of interest), two decision options
 D <- 2
 U <- function(d, Theta_int, Theta_rem, t_1, t_2)
-  sum(1.05^(1-(t_1:t_2)))*((d == 1)*Theta_int +
-                           (d == 2)*Theta_rem)
+  sum(1.05^(1-(t_1:t_2)))*((d == 1)*Theta_int + (d == 2)*Theta_rem)
 N <- 10000
 Theta_int <- matrix(rbeta(N, 2, 3), nrow = N, ncol = 1, dimnames = list(NULL, "theta_A"))
 Theta_rem <- matrix(rbeta(N, 2, 3), nrow = N, ncol = 1, dimnames = list(NULL, "theta_B"))
 t <- c(C = 0, A = 1, H = 15)
 prop <- rep(1/D, D)
 cost <- 0
-cond_fun <- function(J, Theta_int) rbeta(J, 2, 3)
+cond_fun <- function(args) rbeta(args$N, 2, 3)
 enb_partial_perfect(D, U, Theta_int, Theta_rem, t, prop, cost, method = "MC",
                     cond_fun = cond_fun)
 enb_partial_perfect(D, U, Theta_int, Theta_rem, t, prop, cost, method = "NP",
@@ -82,7 +81,7 @@ Theta_rem <- matrix(Theta[,"theta_C"], nrow = N, ncol = 1, dimnames = list(NULL,
 t <- c(C = 0, A = 1, H = 15)
 prop <- rep(1/D, D)
 cost <- 0
-cond_fun <- function(J, Theta_int) rbeta(J, 2, 3)
+cond_fun <- function(args) rbeta(args$N, 2, 3)
 enb_partial_perfect(D, U, Theta_int, Theta_rem, t, prop, cost, method = "MC",
                     cond_fun = cond_fun)
 enb_partial_perfect(D, U, Theta_int, Theta_rem, t, prop, cost, method = "NP",

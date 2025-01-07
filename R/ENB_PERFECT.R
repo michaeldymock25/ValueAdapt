@@ -64,7 +64,7 @@ enb_perfect <- function(D, U, Theta, t, prop, cost){
 
   ## finally compute the expected net benefit of collecting perfect information
 
-  ENB_PERFECT <- (value_during + value_after - cost) - value_now
+  ENB_PERFECT <- (value_during + value_after) - (value_now + cost)
 
   return(ENB_PERFECT)
 }

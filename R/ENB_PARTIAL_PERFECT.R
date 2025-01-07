@@ -12,24 +12,23 @@
 #' @param prop Vector containing current proportions of intervention use. Must sum to one.
 #' @param cost Cost of sampling
 #' @param method Approximation method. Either MC for Monte-Carlo, NP for non-parametric (default) or MM for moment matching. The moment matching method requires the evppi function to be run in advance using the non-parametric method to generate INB_partial.
-#' @param J Number of inner Monte Carlo loops. Only required for the Monte Carlo approximation method.
 #' @param K Number of outer Monte Carlo loops. Only required for the Monte Carlo approximation method.
-#' @param cond_fun A function that generates sets of Theta_rem conditional on the current values of Theta_int. The first argument must be J and the second must be a parameter vector. Only required for the Monte Carlo approximation method.
-#' @param model Generalised additive regression model specification (formula). Only required for the non-parametric approximation method.
+#' @param cond_args List of arguments to be passed to cond_fun(). Defaults to an empty list.
+#' @param cond_fun A function that generates sets of Theta_rem conditional on the current values of Theta_int. The only argument should be a list containing the parameter draws and additional parameters. Only required for the Monte Carlo approximation method.
+#' @param model Generalised additive regression model specification (formula). Only required for the non-parametric approximation method. Should be a function of the parameters of interest.
 #' @return Expected net benefit of collecting partial perfect information
 #' @examples
 #' # two parameters (one parameter of interest), two decision options
 #' D <- 2
 #' U <- function(d, Theta_int, Theta_rem, t_1, t_2)
-#'   sum(1.05^(1-(t_1:t_2)))*((d == 1)*Theta_int +
-#'                            (d == 2)*Theta_rem)
+#'   sum(1.05^(1-(t_1:t_2)))*((d == 1)*Theta_int + (d == 2)*Theta_rem)
 #' N <- 10000
 #' Theta_int <- matrix(rbeta(N, 2, 3), nrow = N, ncol = 1, dimnames = list(NULL, "theta_A"))
 #' Theta_rem <- matrix(rbeta(N, 2, 3), nrow = N, ncol = 1, dimnames = list(NULL, "theta_B"))
 #' t <- c(C = 0, A = 1, H = 15)
 #' prop <- rep(1/D, D)
 #' cost <- 0
-#' cond_fun <- function(J, Theta_int) rbeta(J, 2, 3)
+#' cond_fun <- function(args) rbeta(args$N, 2, 3)
 #' enb_partial_perfect(D, U, Theta_int, Theta_rem, t, prop, cost, method = "MC",
 #'                     cond_fun = cond_fun)
 #' enb_partial_perfect(D, U, Theta_int, Theta_rem, t, prop, cost, method = "NP",
@@ -49,15 +48,15 @@
 #' t <- c(C = 0, A = 1, H = 15)
 #' prop <- rep(1/D, D)
 #' cost <- 0
-#' cond_fun <- function(J, Theta_int) rbeta(J, 2, 3)
+#' cond_fun <- function(args) rbeta(args$N, 2, 3)
 #' enb_partial_perfect(D, U, Theta_int, Theta_rem, t, prop, cost, method = "MC",
 #'                     cond_fun = cond_fun)
 #' enb_partial_perfect(D, U, Theta_int, Theta_rem, t, prop, cost, method = "NP",
 #'                     model = "te(theta_A, theta_B)")
 #' @rdname enb_partial_perfect
 #' @export
-enb_partial_perfect <- function(D, U, Theta_int, Theta_rem, t, prop, cost, method = "NP", J = 10000, K = 10000,
-                                cond_fun = NULL, model = NULL){
+enb_partial_perfect <- function(D, U, Theta_int, Theta_rem, t, prop, cost, method = "NP", K = 10000,
+                                cond_args = list(), cond_fun = NULL, model = NULL){
 
   if(!(method %in% c("MC", "NP"))) stop("Method must be specified as MC or NP")
   if(nrow(Theta_int) != nrow(Theta_rem)) stop("Theta_int and Theta_rem must contain the same number of draws")
@@ -80,9 +79,11 @@ enb_partial_perfect <- function(D, U, Theta_int, Theta_rem, t, prop, cost, metho
   if(method == "MC"){
     if(N < K) stop("The number of parameter draws must be greater than or equal to K")
     Theta_int_redraw <- as.matrix(Theta_int[sample.int(N, size = K),])
+    colnames(Theta_int_redraw) <- colnames(Theta_int)
     PPI <- sapply(1:K, function(k){
-      Theta_rem_tmp <- cond_fun(J, Theta_int_redraw[k,])
-      Theta_int_tmp <- do.call(rbind, lapply(1:J, function(j) Theta_int_redraw[k,]))
+      cond_args_tmp <- c(cond_args, D = D, N = N, Theta_int_redraw[k,])
+      Theta_rem_tmp <- cond_fun(cond_args_tmp)
+      Theta_int_tmp <- do.call(rbind, lapply(1:N, function(n) Theta_int_redraw[k,]))
       NB_tmp <- sapply(1:D, function(d) U(d, Theta_int_tmp, Theta_rem_tmp, t["A"] + 1, t["H"]))
       INB_tmp <- NB_tmp - NB_tmp[,1]
       max(colMeans(INB_tmp))
@@ -91,7 +92,7 @@ enb_partial_perfect <- function(D, U, Theta_int, Theta_rem, t, prop, cost, metho
 
     ## finally compute the expected net benefit of collecting partial perfect information
 
-    ENB_PARTIAL_PERFECT <- (value_during + value_after - cost) - value_now
+    ENB_PARTIAL_PERFECT <- (value_during + value_after) - (value_now + cost)
 
     return(ENB_PARTIAL_PERFECT)
 
@@ -106,7 +107,7 @@ enb_partial_perfect <- function(D, U, Theta_int, Theta_rem, t, prop, cost, metho
 
     ## finally compute the expected net benefit of collecting partial perfect information
 
-    ENB_PARTIAL_PERFECT <- (value_during + value_after - cost) - value_now
+    ENB_PARTIAL_PERFECT <- (value_during + value_after) - (value_now + cost)
 
     return(list(ENB_PARTIAL_PERFECT = ENB_PARTIAL_PERFECT, INB_partial = INB_partial))
   }
