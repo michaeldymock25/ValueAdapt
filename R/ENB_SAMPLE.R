@@ -3,8 +3,8 @@
 #' @description Computes the expected net benefit of collecting sample information using either a Monte-Carlo, non-parametric or moment matching approximation method
 #' @import EVSI
 #' @import mgcv
-#' @import RhpcBLASctl
 #' @import stats
+#' @import RhpcBLASctl
 #' @param D Number of decision options
 #' @param U Utility function that depends on the decision option, parameters and decision times t_1 and t_2
 #' @param Theta Named matrix of parameter draws from prior/posterior distribution
@@ -22,6 +22,7 @@
 #' @param INB_partial Samples of INB for the parameters of interest generated from the evppi function using the non-parametric approximation method. Only required for the moment matching approximation method.
 #' @param Q Number of model reruns to estimate the expected variance of the posterior net benefit. Only required for the moment matching approximation method.
 #' @param correct A named list containing information to compute a correction for the underestimation of the expected net benefit of sampling. Defaults to NULL to apply no correction. Currently under development.
+#' @param threads Number of BLAS threads. Defaults to one.
 #' @return Expected net benefit of collecting sample information
 #' @examples
 #' # one parameter, two decision options
@@ -100,8 +101,9 @@
 #' @export
 enb_sample <- function(D, U, Theta, t, prop, cost, method = "NP", K = 10000,
                        samp_args = list(), samp_fun = NULL, post_args = list(), post_fun = NULL,
-                       stat_fun = NULL, model = NULL, INB_partial = NULL, Q = 50, correct = NULL){
+                       stat_fun = NULL, model = NULL, INB_partial = NULL, Q = 50, correct = NULL, threads = 1){
 
+  RhpcBLASctl::blas_set_num_threads(threads)
   if(!(method %in% c("MC", "NP", "MM"))) stop("Method must be specified as MC, NP or MM")
   if(!is.null(correct) & method != "MC") stop("Method must be MC to calculate the correction term")
 
@@ -151,7 +153,6 @@ enb_sample <- function(D, U, Theta, t, prop, cost, method = "NP", K = 10000,
     colnames(summ_stats) <- names(samp_out[[1]])
     g_hat <- matrix(data = NA, nrow = N, ncol = D)
     g_hat[,1] <- 0
-    RhpcBLASctl::blas_set_num_threads(1)
     for(d in 2:D) g_hat[,d] <- gam(update(formula(INB[, d] ~ .), formula(paste(".~", model))), data = as.data.frame(summ_stats))$fitted
     value_after <- mean(apply(g_hat, 1, max))
   } else if(method == "MM"){
