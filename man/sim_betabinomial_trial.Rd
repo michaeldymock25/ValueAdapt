@@ -8,17 +8,17 @@ sim_betabinomial_trial(
   D,
   U,
   Theta,
+  n_analyses,
   t,
   prop,
   cost,
   prior_par,
-  n_analyses = 1,
-  n_samp = 1,
+  n_samp,
   n_sims = 1,
   n_draws = 10000,
   method = "NP",
-  J = 10000,
   K = 10000,
+  apply_correct = FALSE,
   n_cores = 1
 )
 }
@@ -29,50 +29,49 @@ sim_betabinomial_trial(
 
 \item{Theta}{Vector of true parameter values to use for simulation. Must be of length D.}
 
-\item{t}{Named matrix of ascending decision times in years including the current time ("C"), analysis time ("A") and the time horizon ("H") for each analysis including the trial start-up decision. Columns are times and rows are analyses.}
+\item{n_analyses}{Maximum number of trial analyses (must be at least two)}
+
+\item{t}{Named matrix of ascending decision times in years including the current time ("C"), analysis time ("A") and the time horizon ("H") for each analysis. Columns are times and rows are analyses (with n_analyses rows).}
 
 \item{prop}{Vector containing current proportions of intervention use. Must sum to one.}
 
-\item{cost}{Vector of costs to proceed between analyses. Must be of length n_analyses + 1 to include the trial start-up decision.}
+\item{cost}{Vector of costs to proceed between analyses (not including trial start-up). Must be of length n_analyses.}
 
 \item{prior_par}{Matrix of parameters to specify the beta prior distribution with each row representing a different parameter contained in Theta.}
 
-\item{n_analyses}{Maximum number of trial analyses where ENBS decisions are made (must be at least one)}
-
 \item{n_samp}{Number of observations to sample between analyses for each decision option}
 
-\item{n_sims}{Number of simulated trials to generate (must be at least two)}
+\item{n_sims}{Number of simulated trials to generate. Defaults to one.}
 
-\item{n_draws}{Number of parameter samples to draw from prior/posterior distributions}
+\item{n_draws}{Number of parameter samples to draw from prior/posterior distributions. Defaults to 10,000.}
 
-\item{method}{Approximation method. Either MC for Monte-Carlo or NP for non-parametric (default). The moment matching method is not currently supported.}
-
-\item{J}{Number of inner Monte Carlo loops. Only required for the Monte Carlo approximation method.}
+\item{method}{Approximation method. Either MC for Monte-Carlo or NP for non-parametric (default). The moment matching method is not currently supported. Must be MC if an underestimation correction is to be computed.}
 
 \item{K}{Number of outer Monte Carlo loops. Only required for the Monte Carlo approximation method.}
 
-\item{n_cores}{Number of cores to use if running in parallel}
+\item{apply_correct}{If TRUE, a correction for the underestimation of the expected net benefit of sampling is applied. Defaults to FALSE to apply no correction.}
+
+\item{n_cores}{Number of cores to use if running simulations in parallel. Note that the num_cores and threads arguments of enb_sample() is set to one. Deafults to one.}
 }
 \value{
 Matrix containing the expected value of sample information computed at each analysis for each simulated trial
 }
 \description{
-Simulates a series of trials using the value-driven adaptive design for a beta-binomial model
+Simulates a series of sequential trials using the value-driven adaptive design for a beta-binomial model
 }
 \examples{
 D <- 2
 U <- function(d, Theta, t_1, t_2) sum(1.05^(1-(t_1:t_2)))*Theta[,d]
 Theta <- c(0.5, 0.6)
-n_analyses <- 2
+n_analyses <- 3
 t <- matrix(c(0, 1, 15,
               1, 2, 15,
               2, 3, 15),
-            nrow = n_analyses + 1, ncol = 3, byrow = TRUE,
+            nrow = n_analyses, ncol = 3, byrow = TRUE,
             dimnames = list(NULL, c("C", "A", "H")))
 prop <- rep(1/D, D)
-cost <- rep(0, n_analyses + 1)
+cost <- rep(0, n_analyses)
 prior_par <- matrix(rep(c(2, 3), D), nrow = D, byrow = TRUE)
-sim_betabinomial_trial(D, U, Theta, t, prop, cost, prior_par,
-                       n_analyses = n_analyses, n_samp = 50,
-                       n_sims = 4)
+sim_betabinomial_trial(D, U, Theta, n_analyses, t, prop, cost,
+                       prior_par, n_samp = 50, n_sims = 4)
 }

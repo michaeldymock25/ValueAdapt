@@ -3,6 +3,7 @@
 #' @description Computes the expected net benefit of collecting sample information using either a Monte-Carlo, non-parametric or moment matching approximation method
 #' @import EVSI
 #' @import mgcv
+#' @import parallel
 #' @import stats
 #' @import RhpcBLASctl
 #' @param D Number of decision options
@@ -11,7 +12,7 @@
 #' @param t Named vector of ascending decision times in years including the current time ("C"), analysis time ("A") and the time horizon ("H")
 #' @param prop Vector containing current proportions of intervention use. Must sum to one.
 #' @param cost Cost of sampling
-#' @param method Approximation method. Either MC for Monte-Carlo, NP for non-parametric (default) or MM for moment matching. The moment matching method requires the evppi function to be run in advance using the non-parametric method to generate INB_partial.
+#' @param method Approximation method. Either MC for Monte-Carlo, NP for non-parametric (default) or MM for moment matching. The moment matching method requires the evppi function to be run in advance using the non-parametric method to generate INB_partial. Must be MC if an underestimation correction is to be computed.
 #' @param K Number of outer Monte Carlo loops. Only required for the Monte Carlo approximation method.
 #' @param samp_args List of arguments to be passed to samp_fun(). Defaults to an empty list.
 #' @param samp_fun A function that generates a sample of data based on the parameter draws (posterior predictive draw). The only argument should be a list including parameter draws from Theta and any additional parameters. Returns a vector of data to be passed to post_fun().
@@ -21,8 +22,9 @@
 #' @param model Generalised additive regression model specification (formula). Only required for the non-parametric approximation method. Should be a function of the data exported by samp_fun().
 #' @param INB_partial Samples of INB for the parameters of interest generated from the evppi function using the non-parametric approximation method. Only required for the moment matching approximation method.
 #' @param Q Number of model reruns to estimate the expected variance of the posterior net benefit. Only required for the moment matching approximation method.
-#' @param correct A named list containing information to compute a correction for the underestimation of the expected net benefit of sampling. Defaults to NULL to apply no correction. Currently under development.
-#' @param threads Number of BLAS threads. Defaults to one.
+#' @param correct A named list containing information to compute a correction for the underestimation of the expected net benefit of sampling. Defaults to NULL to apply no correction.
+#' @param num_cores Number of cores to utilise when generating posterior distributions. Only required for the Monte Carlo and moment matching approximation methods. Defaults to one.
+#' @param num_threads Number of BLAS threads. Defaults to one.
 #' @return Expected net benefit of collecting sample information
 #' @examples
 #' # one parameter, two decision options
@@ -101,9 +103,10 @@
 #' @export
 enb_sample <- function(D, U, Theta, t, prop, cost, method = "NP", K = 10000,
                        samp_args = list(), samp_fun = NULL, post_args = list(), post_fun = NULL,
-                       stat_fun = NULL, model = NULL, INB_partial = NULL, Q = 50, correct = NULL, threads = 1){
+                       stat_fun = NULL, model = NULL, INB_partial = NULL, Q = 50,
+                       correct = NULL, num_cores = 1, num_threads = 1){
 
-  RhpcBLASctl::blas_set_num_threads(threads)
+  RhpcBLASctl::blas_set_num_threads(num_threads)
   if(!(method %in% c("MC", "NP", "MM"))) stop("Method must be specified as MC, NP or MM")
   if(!is.null(correct) & method != "MC") stop("Method must be MC to calculate the correction term")
 
@@ -130,10 +133,12 @@ enb_sample <- function(D, U, Theta, t, prop, cost, method = "NP", K = 10000,
                    samp_args_tmp <- c(samp_args, Theta_redraw[k,])
                    samp_fun(samp_args_tmp)
     })
-    Theta_tmp <- lapply(1:K, function(k){
-                    post_args_tmp <- c(post_args, D = D, N = N, samp_out[[k]])
-                    post_fun(post_args_tmp)
-    })
+    Theta_tmp <- mclapply(1:K,
+                          function(k){
+                            post_args_tmp <- c(post_args, D = D, N = N, samp_out[[k]])
+                            post_fun(post_args_tmp)
+                          },
+                          mc.cores = num_cores)
     SI <- sapply(1:K, function(k){
       NB_tmp <- sapply(1:D, function(d) U(d, Theta_tmp[[k]], t["A"] + 1, t["H"]))
       INB_tmp <- NB_tmp - NB_tmp[,1]
@@ -163,10 +168,12 @@ enb_sample <- function(D, U, Theta, t, prop, cost, method = "NP", K = 10000,
                    samp_args_tmp <- c(samp_args, Theta_redraw[q,])
                    samp_fun(samp_args_tmp)
     })
-    Theta_tmp <- lapply(1:Q, function(q){
-                    post_args_tmp <- c(post_args, D = D, N = N, samp_out[[q]])
-                    post_fun(post_args_tmp)
-    })
+    Theta_tmp <- mclapply(1:Q,
+                          function(q){
+                            post_args_tmp <- c(post_args, D = D, N = N, samp_out[[q]])
+                            post_fun(post_args_tmp)
+                          },
+                          mc.cores = num_cores)
     var_est <- lapply(1:Q, function(q){
       NB_tmp <- sapply(1:D, function(d) U(d, Theta_tmp[[q]], t["A"] + 1, t["H"]))
       INB_tmp <- NB_tmp - NB_tmp[,1]
@@ -191,17 +198,33 @@ enb_sample <- function(D, U, Theta, t, prop, cost, method = "NP", K = 10000,
   ## fourth compute the underestimation correction term if specified
 
   if(!is.null(correct)){
-    if(correct[["n_anl"]] > 1){
-      correct[["n_anl"]] <- correct[["n_anl"]] - 1
-      if("t_update" %in% names(correct)) t <- correct[["t_update"]](t)
-      if("cost_update" %in% names(correct)) cost <- correct[["cost_update"]](cost)
-      if("samp_args_update" %in% names(correct)) samp_args <- correct[["samp_args_update"]](samp_args)
-
+    if(is.null(correct[["n_analyses_rem"]])) correct[["n_analyses_rem"]] <- correct[["n_analyses"]] - 1
+    if(correct[["n_analyses_rem"]] > 0){
+      correct[["n_analyses_rem"]] <- correct[["n_analyses_rem"]] - 1
+      analysis <- correct[["n_analyses"]] - correct[["n_analyses_rem"]]
+      if("t_update" %in% names(correct)){
+        if(!("t_update_args" %in% names(correct))) correct[["t_update_args"]] <- list()
+        correct[["t_update_args"]][["analysis"]] <- analysis
+        t <- correct[["t_update"]](correct[["t_update_args"]])
+      }
+      if("cost_update" %in% names(correct)){
+        if(!("cost_update_args" %in% names(correct))) correct[["cost_update_args"]] <- list()
+        correct[["cost_update_args"]][["analysis"]] <- analysis
+        cost <- correct[["cost_update"]](correct[["cost_update_args"]])
+      }
+      if("samp_args_update" %in% names(correct)){
+        if(!("samp_args_update_args" %in% names(correct))) correct[["samp_args_update_args"]] <- list()
+        correct[["samp_args_update_args"]][["analysis"]] <- analysis
+        samp_args <- correct[["samp_args_update"]](correct[["samp_args_update_args"]])
+      }
       correction_term_vec <- sapply(1:K, function(k){
-                                args_tmp <- c(samp_out[[k]], post_args)
-                                post_args_tmp <- correct[["post_args_update"]](args_tmp)
-                                enb_sample(D = D, U = U, Theta = Theta_tmp[[k]], t = t, prop = prop, cost = cost, method = "MC", K = K,
-                                           samp_args = samp_args, samp_fun = samp_fun, post_args = post_args_tmp, post_fun = post_fun,
+                                if(!("post_args_update_args" %in% names(correct))) correct[["post_args_update_args"]] <- list()
+                                for(nm in names(samp_out[[k]])) correct[["post_args_update_args"]][[nm]] <- samp_out[[k]][[nm]]
+                                for(nm in names(post_args)) correct[["post_args_update_args"]][[nm]] <- post_args[[nm]]
+                                correct[["post_args_update_args"]][["analysis"]] <- analysis
+                                post_args <- correct[["post_args_update"]](correct[["post_args_update_args"]])
+                                enb_sample(D = D, U = U, Theta = Theta_tmp[[k]], t = t, prop = prop, cost = cost, method = method, K = K,
+                                           samp_args = samp_args, samp_fun = samp_fun, post_args = post_args, post_fun = post_fun,
                                            correct = correct)})
       correction_term <- mean(pmax(correction_term_vec, 0))
     } else {

@@ -21,7 +21,9 @@ enb_sample(
   model = NULL,
   INB_partial = NULL,
   Q = 50,
-  correct = NULL
+  correct = NULL,
+  num_cores = 1,
+  num_threads = 1
 )
 }
 \arguments{
@@ -37,7 +39,7 @@ enb_sample(
 
 \item{cost}{Cost of sampling}
 
-\item{method}{Approximation method. Either MC for Monte-Carlo, NP for non-parametric (default) or MM for moment matching. The moment matching method requires the evppi function to be run in advance using the non-parametric method to generate INB_partial.}
+\item{method}{Approximation method. Either MC for Monte-Carlo, NP for non-parametric (default) or MM for moment matching. The moment matching method requires the evppi function to be run in advance using the non-parametric method to generate INB_partial. Must be MC if an underestimation correction is to be computed.}
 
 \item{K}{Number of outer Monte Carlo loops. Only required for the Monte Carlo approximation method.}
 
@@ -57,7 +59,11 @@ enb_sample(
 
 \item{Q}{Number of model reruns to estimate the expected variance of the posterior net benefit. Only required for the moment matching approximation method.}
 
-\item{correct}{A named list containing information to compute a correction for the underestimation of the expected net benefit of sampling. Defaults to NULL to apply no correction. Currently under development.}
+\item{correct}{A named list containing information to compute a correction for the underestimation of the expected net benefit of sampling. Defaults to NULL to apply no correction.}
+
+\item{num_cores}{Number of cores to utilise when generating posterior distributions. Only required for the Monte Carlo and moment matching approximation methods. Defaults to one.}
+
+\item{num_threads}{Number of BLAS threads. Defaults to one.}
 }
 \value{
 Expected net benefit of collecting sample information
