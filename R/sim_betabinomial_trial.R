@@ -10,7 +10,7 @@
 #' @param prop Vector containing current proportions of intervention use. Must sum to one.
 #' @param cost Vector of costs to proceed between analyses (not including trial start-up). Must be of length n_analyses.
 #' @param prior_par Matrix of parameters to specify the beta prior distribution with each row representing a different parameter contained in Theta.
-#' @param n_samp Number of observations to sample between analyses for each decision option
+#' @param n_samp Number of observations to sample between analyses for each decision option between each analysis. Currently only supports a scalar input.
 #' @param n_sims Number of simulated trials to generate. Defaults to one.
 #' @param n_draws Number of parameter samples to draw from prior/posterior distributions. Defaults to 10,000.
 #' @param method Approximation method. Either MC for Monte-Carlo or NP for non-parametric (default). The moment matching method is not currently supported. Must be MC if an underestimation correction is to be computed.
@@ -31,8 +31,10 @@
 #' prop <- rep(1/D, D)
 #' cost <- rep(0, n_analyses)
 #' prior_par <- matrix(rep(c(2, 3), D), nrow = D, byrow = TRUE)
+#' n_samp <- 50
+#' n_sims <- 4
 #' sim_betabinomial_trial(D, U, Theta, n_analyses, t, prop, cost,
-#'                        prior_par, n_samp = 50, n_sims = 4)
+#'                        prior_par, n_samp, n_sims)
 #' @rdname sim_betabinomial_trial
 #' @export
 sim_betabinomial_trial <- function(D, U, Theta, n_analyses, t, prop, cost, prior_par, n_samp, n_sims = 1,
@@ -40,89 +42,82 @@ sim_betabinomial_trial <- function(D, U, Theta, n_analyses, t, prop, cost, prior
 
   if(length(Theta) != D) stop("Theta must be a vector of length D")
   if(!(method %in% c("MC", "NP"))) stop("Method must be specified as MC or NP. Note that the moment matching method is not currently supported")
-  if(nrow(t) != n_analyses) stop("Matrix t must have rows for the number of analyses")
-  if(length(cost) != n_analyses) stop("Cost vector must be of length the number of analyses")
+  if(nrow(t) != n_analyses) stop("Matrix t must have the same number of rows as the number of analyses")
+  if(length(cost) != n_analyses) stop("Cost vector must be the same length as the number of analyses")
   if(apply_correct & method != "MC") stop("Method must be MC to calculate the correction term")
 
-  dat_trial <- rbinom(n_sims*n_analyses*D, size = n_samp, Theta)
+  dat_trial <- as.vector(sapply(1:n_sims, function(sim)
+                            sapply(0:(n_analyses - 1), function(analysis){
+                              if(analysis == 0){
+                                rep(0, D)
+                              } else {
+                                rbinom(D, size = n_samp, Theta)
+                              }
+                            })))
   dat_trial <- array(dat_trial,
                      dim = c(D, n_analyses, n_sims),
-                     dimnames = list("Decision" = paste0("d", 1:D), "Analysis" = 1:n_analyses, "Simulation" = 1:n_sims))
+                     dimnames = list("Decision" = paste0("d", 1:D), "Analysis" = 0:(n_analyses - 1), "Simulation" = 1:n_sims))
   dat_trial <- apply(dat_trial, c("Decision", "Simulation"), cumsum)
 
-  prior <- mclapply(1:n_sims,
-                    function(sim) lapply(1:D, function(d) rbeta(n_draws, prior_par[d,1], prior_par[d,2])),
-                    mc.cores = n_cores)
-  prior <- array(unlist(prior),
-                 dim = c(n_draws, D, n_sims),
-                 dimnames = list("Draw" = 1:n_draws, "Decision" = paste0("p_", 1:D), "Simulation" = 1:n_sims))
-
-  posterior <- mclapply(1:n_sims,
-                        function(sim){
-                          lapply(1:n_analyses, function(analysis) lapply(1:D, function(d)
-                            rbeta(n_draws,
-                                  prior_par[d,1] + dat_trial[analysis, d, sim],
-                                  prior_par[d,2] + n_samp*analysis - dat_trial[analysis, d, sim])))
-                        },
-                        mc.cores = n_cores)
-  posterior <- array(unlist(posterior),
-                     dim = c(n_draws, D, n_analyses, n_sims),
-                     dimnames = list("Draw" = 1:n_draws, "Decision" = paste0("p_", 1:D), "Analysis" = 1:n_analyses, "Simulation" = 1:n_sims))
+  psa <- mclapply(1:n_sims,
+                  function(sim){
+                    lapply(1:n_analyses, function(analysis)
+                       lapply(1:D, function(d)
+                           rbeta(n_draws,
+                                 prior_par[d,1] + dat_trial[analysis, d, sim],
+                                 prior_par[d,2] + n_samp*(analysis - 1) - dat_trial[analysis, d, sim])))
+                  },
+                  mc.cores = n_cores)
+  psa <- array(unlist(psa),
+               dim = c(n_draws, D, n_analyses, n_sims),
+               dimnames = list("Draw" = 1:n_draws, "Decision" = paste0("p", 1:D), "Analysis" = 0:(n_analyses - 1), "Simulation" = 1:n_sims))
 
   samp_args <- list(n = n_samp)
   samp_fun <- function(args){
-    out <- c(args[["n"]], sapply(1:D, function(d) rbinom(1, size = args[["n"]], prob = args[[paste0("p_", d)]])))
-    names(out) <- c("n", paste0("y_", 1:D))
+    out <- c(args[["n"]], sapply(1:D, function(d) rbinom(1, size = args[["n"]], prob = args[[paste0("p", d)]])))
+    names(out) <- c("n", paste0("d", 1:D))
     out
   }
 
   post_args <- c(list(prior_par), rep(list(0), D + 1))
-  names(post_args) <- c("prior_par", "n_prev", paste0("y_", 1:D, "_prev"))
+  names(post_args) <- c("prior_par", "n_prev", paste0("d", 1:D, "_prev"))
   post_fun <- function(args){
-    matrix(unlist(lapply(1:D, function(d)
+    matrix(unlist(lapply(1:args[["D"]], function(d)
                      rbeta(args[["N"]],
-                           args[["prior_par"]][d,1] + (args[[paste0("y_", d, "_prev")]] + args[[paste0("y_", d)]]),
-                           args$prior_par[d,2] + (args[["n_prev"]] + args[["n"]]) -
-                             (args[[paste0("y_", d, "_prev")]] + args[[paste0("y_", d)]])))),
-           nrow = args$N, ncol = D, dimnames = list(NULL, paste0("p_", 1:D)))
-  }
-
-  if(apply_correct){
-    correct <- list(n_analyses = n_analyses,
-                    t_update_args = list(t = t),
-                    t_update = function(t_update_args) t_update_args[["t"]][t_update_args[["analysis"]],],
-                    cost_update_args = list(cost = cost),
-                    cost_update = function(cost_update_args) cost_update_args[["cost"]][cost_update_args[["analysis"]]],
-                    post_args_update = function(post_args_update_args){
-                                         out <- c(list(post_args_update_args$prior_par,
-                                                       post_args_update_args$n_prev + post_args_update_args$n),
-                                                  lapply(1:D, function(d) post_args_update_args[[paste0("y_", d, "_prev")]] +
-                                                                          post_args_update_args[[paste0("y_", d)]]))
-                                         names(out) <- c("prior_par", "n_prev", paste0("y_", 1:D, "_prev"))
-                                         out})
-  } else {
-    correct <- NULL
+                           args[["prior_par"]][d,1] + (args[[paste0("d", d, "_prev")]] + args[[paste0("d", d)]]),
+                           args$prior_par[d,2] + (args[["n_prev"]] + args[["n"]]) - (args[[paste0("d", d, "_prev")]] + args[[paste0("d", d)]])))),
+           nrow = args[["N"]], ncol = args[["D"]], dimnames = list(NULL, paste0("p", 1:args[["D"]])))
   }
 
   ENB_SAMPLE <- mclapply(1:n_sims,
                          function(sim){
                            lapply(1:n_analyses, function(analysis){
-                              if(analysis == 1){
-                                enb_sample(D = D, U = U, Theta = prior[,,sim], t = t[analysis,],
-                                           prop = prop, cost = cost[analysis], method = method, K = K,
-                                           samp_args = samp_args, samp_fun = samp_fun,
-                                           post_args = post_args, post_fun = post_fun,
-                                           stat_fun = function(x) x, model = paste0("s(", paste0("y_", 1:D), ")", collapse = " + "),
-                                           correct = correct)
+                              if(apply_correct){
+                                correct <- list(n_analyses = n_analyses - (analysis - 1),
+                                                t_update_args = list(t = t[analysis:n_analyses,]),
+                                                t_update = function(t_update_args)
+                                                             t_update_args[["t"]][t_update_args[["analysis"]],],
+                                                cost_update_args = list(cost = cost[analysis:n_analyses]),
+                                                cost_update = function(cost_update_args)
+                                                                cost_update_args[["cost"]][cost_update_args[["analysis"]]],
+                                                post_args_update = function(post_args_update_args){
+                                                  out <- c(list(post_args_update_args[["prior_par"]],
+                                                                post_args_update_args[["n_prev"]] + post_args_update_args[["n"]]),
+                                                           lapply(1:D, function(d)
+                                                              post_args_update_args[[paste0("d", d, "_prev")]] +
+                                                              post_args_update_args[[paste0("d", d)]]))
+                                                  names(out) <- c("prior_par", "n_prev", paste0("d", 1:D, "_prev"))
+                                                  out})
                               } else {
-                                enb_sample(D = D, U = U, Theta = posterior[,,analysis-1,sim], t = t[analysis,],
-                                           prop = prop, cost = cost[analysis], method = method, K = K,
-                                           samp_args = samp_args, samp_fun = samp_fun,
-                                           post_args = post_args, post_fun = post_fun,
-                                           stat_fun = function(x) x, model = paste0("s(", paste0("y_", 1:D), ")", collapse = " + "),
-                                           correct = correct)
+                                correct <- NULL
                               }
-                           })
+                              enb_sample(D = D, U = U, Theta = psa[,,analysis,sim], t = t[analysis,],
+                                         prop = prop, cost = cost[analysis], method = method, K = K,
+                                         samp_args = samp_args, samp_fun = samp_fun,
+                                         post_args = post_args, post_fun = post_fun,
+                                         stat_fun = function(x) x, model = paste0("s(", paste0("d", 1:D), ")", collapse = " + "),
+                                         correct = correct)
+                            })
                          },
                          mc.cores = n_cores)
 

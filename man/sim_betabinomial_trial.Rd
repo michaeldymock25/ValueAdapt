@@ -39,7 +39,7 @@ sim_betabinomial_trial(
 
 \item{prior_par}{Matrix of parameters to specify the beta prior distribution with each row representing a different parameter contained in Theta.}
 
-\item{n_samp}{Number of observations to sample between analyses for each decision option}
+\item{n_samp}{Number of observations to sample between analyses for each decision option between each analysis. Currently only supports a scalar input.}
 
 \item{n_sims}{Number of simulated trials to generate. Defaults to one.}
 
@@ -72,6 +72,8 @@ t <- matrix(c(0, 1, 15,
 prop <- rep(1/D, D)
 cost <- rep(0, n_analyses)
 prior_par <- matrix(rep(c(2, 3), D), nrow = D, byrow = TRUE)
+n_samp <- 50
+n_sims <- 4
 sim_betabinomial_trial(D, U, Theta, n_analyses, t, prop, cost,
-                       prior_par, n_samp = 50, n_sims = 4)
+                       prior_par, n_samp, n_sims)
 }
