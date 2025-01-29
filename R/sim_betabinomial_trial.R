@@ -89,6 +89,13 @@ sim_betabinomial_trial <- function(D, U, Theta, n_analyses, t, prop, cost, prior
            nrow = args[["N"]], ncol = args[["D"]], dimnames = list(NULL, paste0("p", 1:args[["D"]])))
   }
 
+  ENB_PERFECT <- mclapply(1:n_sims,
+                          function(sim){
+                            lapply(1:n_analyses, function(analysis)
+                               enb_perfect(D = D, U = U, Theta = psa[,,analysis,sim], t = t[analysis,], prop = prop, cost = cost[analysis]))
+                          },
+                          mc.cores = n_cores)
+
   ENB_SAMPLE <- mclapply(1:n_sims,
                          function(sim){
                            lapply(1:n_analyses, function(analysis){
@@ -121,9 +128,13 @@ sim_betabinomial_trial <- function(D, U, Theta, n_analyses, t, prop, cost, prior
                          },
                          mc.cores = n_cores)
 
+  ENB_PERFECT <- array(unlist(ENB_PERFECT),
+                       dim = c(n_analyses, n_sims),
+                       dimnames = list("Analysis" = 1:n_analyses, "Simulation" = 1:n_sims))
+
   ENB_SAMPLE <- array(unlist(ENB_SAMPLE),
                       dim = c(n_analyses, n_sims),
                       dimnames = list("Analysis" = 1:n_analyses, "Simulation" = 1:n_sims))
 
-  return(ENB_SAMPLE)
+  return(list(ENBP = ENB_PERFECT, ENBS = ENB_SAMPLE))
 }
