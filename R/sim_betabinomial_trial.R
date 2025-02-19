@@ -89,52 +89,51 @@ sim_betabinomial_trial <- function(D, U, Theta, n_analyses, t, prop, cost, prior
            nrow = args[["N"]], ncol = args[["D"]], dimnames = list(NULL, paste0("p", 1:args[["D"]])))
   }
 
-  ENB_PERFECT <- mclapply(1:n_sims,
-                          function(sim){
-                            lapply(1:n_analyses, function(analysis)
-                               enb_perfect(D = D, U = U, Theta = psa[,,analysis,sim], t = t[analysis,], prop = prop, cost = cost[analysis]))
-                          },
-                          mc.cores = n_cores)
+  ENB <- mclapply(1:n_sims,
+                  function(sim){
+                    lapply(1:n_analyses, function(analysis){
+                       if(apply_correct){
+                         correct <- list(n_analyses = n_analyses - (analysis - 1),
+                                         t_update_args = list(t = t[analysis:n_analyses,]),
+                                         t_update = function(t_update_args) t_update_args[["t"]][t_update_args[["analysis"]],],
+                                         cost_update_args = list(cost = cost[analysis:n_analyses]),
+                                         cost_update = function(cost_update_args) cost_update_args[["cost"]][cost_update_args[["analysis"]]],
+                                         post_args_update = function(post_args_update_args){
+                                           out <- c(list(post_args_update_args[["prior_par"]],
+                                                         post_args_update_args[["n_prev"]] + post_args_update_args[["n"]]),
+                                                    lapply(1:D, function(d)
+                                                       post_args_update_args[[paste0("d", d, "_prev")]] +
+                                                       post_args_update_args[[paste0("d", d)]]))
+                                           names(out) <- c("prior_par", "n_prev", paste0("d", 1:D, "_prev"))
+                                           out})
+                       } else {
+                         correct <- NULL
+                       }
+                       enbp <- enb_perfect(D = D, U = U, Theta = psa[,,analysis,sim], t = t[analysis,], prop = prop, cost = cost[analysis])
+                       start_time <- Sys.time()
+                       enbs <- enb_sample(D = D, U = U, Theta = psa[,,analysis,sim], t = t[analysis,],
+                                          prop = prop, cost = cost[analysis], method = method, K = K,
+                                          samp_args = samp_args, samp_fun = samp_fun, post_args = post_args, post_fun = post_fun,
+                                          stat_fun = function(x) x, model = paste0("s(", paste0("d", 1:D), ")", collapse = " + "),
+                                          correct = correct)
+                       end_time <- Sys.time()
+                       run_time <- difftime(end_time, start_time, units = "mins")
+                       return(list(enbp = enbp, enbs = enbs, run_time = run_time))
+                    })
+                  },
+                  mc.cores = n_cores)
 
-  ENB_SAMPLE <- mclapply(1:n_sims,
-                         function(sim){
-                           lapply(1:n_analyses, function(analysis){
-                              if(apply_correct){
-                                correct <- list(n_analyses = n_analyses - (analysis - 1),
-                                                t_update_args = list(t = t[analysis:n_analyses,]),
-                                                t_update = function(t_update_args)
-                                                             t_update_args[["t"]][t_update_args[["analysis"]],],
-                                                cost_update_args = list(cost = cost[analysis:n_analyses]),
-                                                cost_update = function(cost_update_args)
-                                                                cost_update_args[["cost"]][cost_update_args[["analysis"]]],
-                                                post_args_update = function(post_args_update_args){
-                                                  out <- c(list(post_args_update_args[["prior_par"]],
-                                                                post_args_update_args[["n_prev"]] + post_args_update_args[["n"]]),
-                                                           lapply(1:D, function(d)
-                                                              post_args_update_args[[paste0("d", d, "_prev")]] +
-                                                              post_args_update_args[[paste0("d", d)]]))
-                                                  names(out) <- c("prior_par", "n_prev", paste0("d", 1:D, "_prev"))
-                                                  out})
-                              } else {
-                                correct <- NULL
-                              }
-                              enb_sample(D = D, U = U, Theta = psa[,,analysis,sim], t = t[analysis,],
-                                         prop = prop, cost = cost[analysis], method = method, K = K,
-                                         samp_args = samp_args, samp_fun = samp_fun,
-                                         post_args = post_args, post_fun = post_fun,
-                                         stat_fun = function(x) x, model = paste0("s(", paste0("d", 1:D), ")", collapse = " + "),
-                                         correct = correct)
-                            })
-                         },
-                         mc.cores = n_cores)
-
-  ENB_PERFECT <- array(unlist(ENB_PERFECT),
+  ENB_PERFECT <- array(sapply(ENB, function(analysis) sapply(analysis, function(x) x$enbp)),
                        dim = c(n_analyses, n_sims),
-                       dimnames = list("Analysis" = 1:n_analyses, "Simulation" = 1:n_sims))
+                       dimnames = list("Analysis" = 0:(n_analyses - 1), "Simulation" = 1:n_sims))
 
-  ENB_SAMPLE <- array(unlist(ENB_SAMPLE),
+  ENB_SAMPLE <- array(sapply(ENB, function(analysis) sapply(analysis, function(x) x$enbs)),
                       dim = c(n_analyses, n_sims),
-                      dimnames = list("Analysis" = 1:n_analyses, "Simulation" = 1:n_sims))
+                      dimnames = list("Analysis" = 0:(n_analyses - 1), "Simulation" = 1:n_sims))
 
-  return(list(ENBP = ENB_PERFECT, ENBS = ENB_SAMPLE))
+  RUN_TIME <- array(sapply(ENB, function(analysis) sapply(analysis, function(x) x$run_time)),
+                    dim = c(n_analyses, n_sims),
+                    dimnames = list("Analysis" = 0:(n_analyses - 1), "Simulation" = 1:n_sims))
+
+  return(list(ENBP = ENB_PERFECT, ENBS = ENB_SAMPLE, RUN_TIME = RUN_TIME))
 }
