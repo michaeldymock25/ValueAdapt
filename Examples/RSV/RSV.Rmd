@@ -28,11 +28,17 @@ library(kableExtra)
 library(ggplot2)
 library(gridExtra)
 library(ValueAdapt)
+library(data.table)
 
-## set the seed and read in the functions and simulations results
+## set the seed and read in the simulation and correction results
 
 set.seed(12856421)
-sims <- readRDS(here("Examples/RSV/simulations.rds"))
+
+sims <- readRDS(here("Examples/RSV/RSV_simulations.rds"))
+sims <- data.table(sims)
+sims[, Stop := Value < 0]
+
+corr <- readRDS(here("Examples/RSV/RSV_correction.rds"))
 
 ## colourblind friendly palette
 
@@ -52,14 +58,12 @@ defn <- matrix(c(
   "$d \\in \\{1,2,\\ldots,D\\}$"                     , "A specific decision option from $D$ decision options",
   "$\\boldsymbol{\\Theta}$"                          , "Unknown parameters",
   "$t_1, t_2$"                                       , "Generic times",
-  "$B(d, \\boldsymbol{\\Theta}, t_1, t_2)$"          , "Benefit function",
-  "$C(d, \\boldsymbol{\\Theta}, t_1, t_2)$"          , "Cost function",
+  "$\\text{B}(d, \\boldsymbol{\\Theta}, t_1, t_2)$"  , "Benefit function",
+  "$\\text{C}(d, \\boldsymbol{\\Theta}, t_1, t_2)$"  , "Cost function",
   "$\\lambda$"                                       , "Willingness to pay parameter",
-  "$NB(d, \\boldsymbol{\\Theta}, t_1, t_2) = \\lambda \\times B(d, \\boldsymbol{\\Theta}, t_1, t_2) - C(d, \\boldsymbol{\\Theta}, t_1, t_2)$"                                                          , "Net benefit function",
+  "$\\text{NB}(d, \\boldsymbol{\\Theta}, t_1, t_2) = \\lambda \\times \\text{B}(d, \\boldsymbol{\\Theta}, t_1, t_2) - \\text{C}(d, \\boldsymbol{\\Theta}, t_1, t_2)$"                   , "Net benefit function", 
   "$t_C$"                                            , "Current time",
-  "$t_H$"                                            , "Time Horizon",
-  "$\\underset{d}{\\text{max }} \\text{E}_{\\boldsymbol{\\Theta}} [NB(d,\\boldsymbol{\\Theta}, t_C, t_H)]$"
-                                                     , "Expected value given current information",
+  "$t_H$"                                            , "Time horizon",
   "$i \\in \\{1,2,\\ldots,N\\}$"                     , "A specific participant from $N$ participants",
   "$\\boldsymbol{x}_i$"                              , "Observed data for participant $i$",
   "$\\boldsymbol{X}_i$"                              , "Yet to be observed data for participant $i$",
@@ -71,10 +75,11 @@ defn <- matrix(c(
   "$\\boldsymbol{X}_{(N_j+1):N_{j+1}}$"              , "Yet to be observed data for the next $n_{j+1}$ participants",
   "$\\delta$"                                        , "Fixed trial start-up cost",
   "$\\gamma$"                                        , "Trial per-participant cost",
+  "$\\eta(j) = \\begin{cases} \\delta + \\gamma \\times n_j & \\text{if } j = 1 \\\\ \\gamma \\times n_j & \\text{if } j > 1 \\end{cases}$"                     , "Cost of data collection",
   "$\\boldsymbol{p}$"                                , "Proportions denoting current implementation of decision options",
-  "$\\text{E}_{\\boldsymbol{\\Theta}|\\boldsymbol{x}_{1:N_j}} \\left[\\sum_{d=1}^D p_d \\times NB(d,\\boldsymbol{\\Theta},t_j,t_{j+1})\\right] + \\text{E}_{\\boldsymbol{X}_{(N_j+1):N_{j+1}}} \\left[\\underset{d}{\\text{max }} \\text{E}_{\\boldsymbol{\\Theta}|\\boldsymbol{x}_{1:N_j},\\boldsymbol{X}_{(N_j+1):N_{j+1}}} [NB(d,\\boldsymbol{\\Theta},t_{j+1},t_H)]\\right] - \\underset{d}{\\text{max }} \\text{E}_{\\boldsymbol{\\Theta}|\\boldsymbol{x}_{1:N_j}} \\left[NB(d,\\boldsymbol{\\Theta},t_j,t_H)\\right] - (\\delta + \\gamma \\times n_j)$"
+  "$\\text{E}_{\\boldsymbol{\\Theta}|\\boldsymbol{x}_{1:N_j}} \\left[\\sum_{d=1}^D p_d \\times \\text{NB}(d,\\boldsymbol{\\Theta},t_j,t_{j+1})\\right] + \\text{E}_{\\boldsymbol{X}_{(N_j+1):N_{j+1}}} \\left[\\underset{d}{\\text{max }} \\text{E}_{\\boldsymbol{\\Theta}|\\boldsymbol{x}_{1:N_j},\\boldsymbol{X}_{(N_j+1):N_{j+1}}} [\\text{NB}(d,\\boldsymbol{\\Theta},t_{j+1},t_H)]\\right] - \\left(\\underset{d}{\\text{max }} \\text{E}_{\\boldsymbol{\\Theta}|\\boldsymbol{x}_{1:N_j}} \\left[\\text{NB}(d,\\boldsymbol{\\Theta},t_j,t_H)\\right] - \\eta(j+1)\\right)$"
                                                      , "Expected net benefit of sampling between analyses $j$ and $j+1$"),
-               nrow = 23, ncol = 2, byrow = TRUE)
+  nrow = 23, ncol = 2, byrow = TRUE)
 
 kable(defn, booktabs = TRUE, caption = "Definitions.", linesep = "", escape = F) |>
   kable_styling(font_size = 8, latex_options = "HOLD_position") |>
@@ -88,14 +93,14 @@ kable(defn, booktabs = TRUE, caption = "Definitions.", linesep = "", escape = F)
 
 Of interest to the policymaker is the trade-off between the difference in effectiveness of II compared to MV with respect to preventing MA-RSV in the first 12 months of life, and the respective costs of implementing each strategy. We denote the probability that infants belonging to dyads that received II or MV experience a MA-RSV within the first 12 months with $p_\text{II}$ or $p_\text{MV}$, respectively, where $\boldsymbol{\Theta} = \{p_\text{II},p_\text{MV}\}$.
 
-We assume that in Australia there are on average 300,000 births per year, the willingness to pay to prevent each MA-RSV is $\lambda$ and that there are no other RSV related healthcare costs (i.e., we ignore costs of parental work absenteeism and potential long term respiratory consequences such as asthma). The individual costs for II and MV are \$590 and \$330, respectively. Considering a $t_H = 15$ year horizon with an annual discount rate of 5%, the net benefit functions in \$1 million units are:
+We assume that in Australia there are on average 300,000 births per year, the willingness to pay to prevent each MA-RSV is $\lambda$ and that there are no other RSV related healthcare costs (i.e., we ignore costs of parental work absenteeism and potential long term respiratory consequences such as asthma). The individual costs for II and MV are \$590 and \$330, respectively. Considering a $t_H = 15$ year horizon with an annual discount rate of 5%, the net benefit functions per 1 million Australian dollars are:
 
 \begin{align*}
-NB(II, \boldsymbol{\Theta}, t_1, t_2) &= \frac{1}{1,000,000} \times \sum_{t=t_1}^{t_2} 1.05^{1-t} \times 300,000 \times (-\lambda p_\text{II} - 590) \\
-NB(MV, \boldsymbol{\Theta}, t_1, t_2) &= \frac{1}{1,000,000} \times \sum_{t=t_1}^{t_2} 1.05^{1-t} \times 300,000 \times (-\lambda p_\text{MV} - 330)
+\text{NB}(\text{II}, \boldsymbol{\Theta}, t_1, t_2) &= \frac{1}{1,000,000} \times \sum_{t=t_1}^{t_2} 1.05^{1-t} \times 300,000 \times (-\lambda p_\text{II} - 590) \\
+\text{NB}(\text{MV}, \boldsymbol{\Theta}, t_1, t_2) &= \frac{1}{1,000,000} \times \sum_{t=t_1}^{t_2} 1.05^{1-t} \times 300,000 \times (-\lambda p_\text{MV} - 330)
 \end{align*}
 
-We define the incremental net monetary benefit (INMB) as the difference between the net benefit functions (i.e., $INMB(\boldsymbol{\Theta}, t_1, t_2) = NB(MV, \boldsymbol{\Theta}, t_1, t_2) - NB(II, \boldsymbol{\Theta}, t_1, t_2)$). Here we that MV will be more cost effective than II if $p_\text{MV} - p_\text{II} < \frac{590 - 330}{\lambda}$ (we assume that there are no costs to change the strategy from II to MV). We assume the willingness to pay parameter to be $\lambda = \$5,200$ so that MV will be the optimal decision if $p_\text{MV} - p_\text{II} < 5\%$ and II will be the optimal decision, otherwise.  It is assumed that II is the current implemented standard practice with 100% uptake (i.e., $\boldsymbol{p} = \{1,0\}$, not to be confused with the parameters $\boldsymbol{\Theta} = \{p_\text{II},p_\text{MV}\}$). 
+We define the incremental net monetary benefit (INMB) as the difference between the net benefit functions (i.e., $\text{INMB}(\boldsymbol{\Theta}, t_1, t_2) = \text{NB}(\text{MV}, \boldsymbol{\Theta}, t_1, t_2) - \text{NB}(\text{II}, \boldsymbol{\Theta}, t_1, t_2)$). Here we that MV will be more cost effective than II if $p_\text{MV} - p_\text{II} < \frac{590 - 330}{\lambda}$ (we assume that there are no costs to change the strategy from II to MV). We assume the willingness to pay parameter to be $\lambda = \$5,200$ so that MV will be the optimal decision if $p_\text{MV} - p_\text{II} < 5\%$ and II will be the optimal decision, otherwise.  It is assumed that II is the current implemented standard practice with 100% uptake (i.e., $\boldsymbol{p} = \{1,0\}$, not to be confused with the parameters $\boldsymbol{\Theta} = \{p_\text{II},p_\text{MV}\}$). 
 
 The utility function required to implement the net benefit functions and some other inputs are below:
 
@@ -113,19 +118,23 @@ prop <- c(1,0)
 
 # The trial
 
-Suppose that a potential trial comparing the strategies head-to-head aims to recruit up to a maximum of 1,000 mother-infant dyads, denoted $i_k$, randomised to each strategy $k \in \{\text{II},\text{MV}\}$ and is estimated have a fixed start-up cost ($\delta$) of \$1 million and a per-dyad cost ($\gamma$) of \$2,000 (we assume the per-dyad cost is paid immediately upon recruitment and that costs cannot be saved by reducing participant follow-up). Dyad $i_k$ has outcome $x_{i_k}$, where $x_{i_k} = 1$ if the infant from dyad $i_k$ experiences a MA-RSV within the first 12 months and $x_{i_k} = 0$ otherwise. Analyses are conducted once every 250 dyads per strategy have been recruited, which we assume will take 12 months, and reached their 12 month endpoint (i.e., $n_{1k} = n_{2k} = n_{3k} = n_{4k} = 500$). The following Binomial model is implemented at analysis $j$:
+Suppose that a potential trial comparing the strategies head-to-head aims to recruit up to a maximum of 1,000 mother-infant dyads, denoted $i_k$, randomised to each strategy $k \in \{\text{II},\text{MV}\}$ and is estimated have a fixed start-up cost ($\delta$) of \$1 million and a fixed per-dyad cost ($\gamma$) of \$2,000 paid upon randomisation. Dyad $i_k$ has outcome $x_{i_k}$, where $x_{i_k} = 1$ if the infant from dyad $i_k$ experiences a MA-RSV within the first 12 months and $x_{i_k} = 0$ otherwise. Analyses are conducted once every 250 dyads per strategy have been recruited, which we assume will take 12 months, and reached their 12 month endpoint (i.e., analyses $j \in \{1,2,3,4\}$ are conducted after 2, 3, 4 and 5 years, respectively). The following Binomial model is implemented at analysis $j$:
 
 $$
 \sum_{i_k=1}^{N_{jk}} X_{i_k} \sim \text{Binomial}(N_{jk}, p_k) \quad \forall k \in \{\text{II},\text{MV}\}
 $$
 
-We assume weakly informative Beta(4,20) priors for both unknown parameters $p_\text{II}$ and $p_\text{MV}$. For a value-driven adaptive design, the trial is stopped at an analysis if the ENBS of proceeding to the next analysis (continuing the trial) is below zero. If so, the optimal decision option may be chosen now or once all current participants have completed follow-up.
+We assume weakly informative Beta(4,20) priors for both unknown parameters $p_\text{II}$ and $p_\text{MV}$. For a value-driven adaptive design, the trial is stopped at an analysis if the ENBS of proceeding to the next analysis (continuing the trial) is below a threshold which we set to $\epsilon = 0$.
+
+```{r}
+epsilon <- 0
+```
 
 \clearpage
 
 # Implementation of the value-driven adaptive design
 
-Prior to conducting the trial, we conduct a health economic analysis to determine whether or not \textit{any} data collection is cost-effective (i.e., compute $\text{ENBS}^0$). We use the regression method developed by *Strong et al. (2015)* to estimate the ENBS (note that in principle any approximation method may be used and should be chosen with the context of the application in mind).
+Prior to starting the trial, we conduct a cost-effectiveness analysis to determine whether or not \textit{any} data collection is cost-effective (i.e., compute $\text{ENBP}^0$ and $\text{ENBS}^0$). We use the regression method developed by *Strong et al. (2015)* to estimate the ENBS. 
 
 First, we need to generate the prior distributions:
 
@@ -133,13 +142,13 @@ First, we need to generate the prior distributions:
 n_draws <- 100000
 prior <- matrix(c(rbeta(n_draws, 4, 20), rbeta(n_draws, 4, 20)),
                 nrow = n_draws, ncol = D, 
-                dimnames = list(NULL, c("II", "MV")))
+                dimnames = list(NULL, c("p_II", "p_MV")))
 ```
 
 Given the prior distribution on the parameters, we can investigate the uncertainty in the INMB. Figure \@ref(fig:INMB-0) shows how the distribution is centered close to zero (black dashed line) and so it is unclear which strategy is more cost-effective (the expected value of the distribution shown by the red dashed line is actually positive because the prior distributions are the same for both parameters and MV is cheaper, but the high uncertainty makes this point irrelevant).
 
 ```{r, INMB-0, echo = FALSE, fig.cap = "Parameter prior distributions and the distribution of incremental net monetary benefit (INMB) prior to any data collection. The black dashed line at zero represents the decision point between the infant immunoprophylaxis (II) and maternal vaccination (MV) strategies. The red dashed line represents the expected (mean) INMB."}
-prior_long <- data.frame(x = as.vector(prior), Parameter = rep(c("II", "MV"), each = n_draws))
+prior_long <- data.frame(x = as.vector(prior), Parameter = rep(c("p_II", "p_MV"), each = n_draws))
 p1 <- ggplot(prior_long, aes(x = x, colour = Parameter)) +
   geom_density() +
   scale_colour_manual(values = colours, labels = expression(p[II], p[MV])) +
@@ -156,37 +165,50 @@ p2 <- ggplot(mapping = aes(x = INMB_0)) +
 grid.arrange(p1, p2, nrow = 1)
 ```
 
-For later use, we define the function to generate the posterior distribution conditional on a set of observed data below:
+Assuming that it takes one year to recruit each set of 500 participants and a further year to observe their outcomes, analyses will occur at 2, 3, 4 and 5 years. Note that within-trial decisions are made at 0, 2, 3 and 4 years, although at Analysis 3 there are no longer any potential participants to recruit and so the decision considers whether or not to wait for follow up to complete. Recruitment and follow-up is completed by Analysis 4.
 
 ```{r}
-post_fun <- function(n_draws, x, n_samp = 250) 
-  rbeta(n_draws, 4 + x, 20 + n_samp - x)
+t <- matrix(c(0, 2, 15,
+              2, 3, 15,
+              3, 4, 15,
+              4, 5, 15),
+            nrow = 4, ncol = 3, byrow = TRUE, 
+            dimnames = list(NULL, c("C", "A", "H")))
 ```
 
-Before computing the ENBS we must first define the sampling and statistic functions and the non-parametric model:
+Before computing the ENBS we must first define the sampling cost, sampling function, summary statistic function and non-parametric model:
 
 ```{r}
-samp_fun <- function(Theta, n_samp = 250) 
-  matrix(c(rbinom(nrow(Theta), size = n_samp, prob = Theta[,"II"]),
-           rbinom(nrow(Theta), size = n_samp, prob = Theta[,"MV"])),
-         nrow = nrow(Theta), ncol = 2, dimnames = list(NULL, c("II", "MV")))
-
+delta <- 1
+gamma <- 0.002
+cost <- c(delta + gamma*1000, gamma*500, gamma*500, 0)
+samp_fun <- function(args){
+  c(II = rbinom(1, size = 250, prob = args[["p_II"]]),
+    MV = rbinom(1, size = 250, prob = args[["p_MV"]]))
+}
 stat_fun <- function(x) x
-
 model <- "s(II) + s(MV)"
 ```
 
-Assuming that it takes one year to recruit each set of 500 participants and a further year to observe their outcomes, analyses will occur at 2, 3, 4 and 5 years, although within-trial decisions are made at 0, 2, 3 and 4 years. We compute $\text{ENBS}^0$ to determine if we should proceed to the first analysis, which assumes recruitment over the first 2 years:
+We compute $\text{ENBP}^0$ and $\text{ENBS}^0$ to determine if we should proceed to the first analysis, which assumes recruitment over the first 2 years:
 
 ```{r}
-t_0 <- c(C = 0, A = 2, H = 15)
-delta <- 1
-gamma <- 0.002
-ENBS_0 <- enb_sample(D = D, U = U, Theta = prior, t = t_0, 
-                     prop = prop, cost = delta + gamma*1000,
-                     samp_fun = samp_fun, stat_fun = stat_fun,
-                     model = model)
-ENBS_0
+start_time <- Sys.time()
+enbp_0 <- enb_perfect(D = D, U = U, Theta = prior, t = t[1,], prop = prop, 
+                      cost = cost[1])
+end_time <- Sys.time()
+print(enbp_0)
+print(difftime(end_time, start_time, units = "mins"))
+```
+
+```{r}
+start_time <- Sys.time()
+enbs_0 <- enb_sample(D = D, U = U, Theta = prior, t = t[1,], prop = prop, 
+                     cost = cost[1], samp_fun = samp_fun, 
+                     stat_fun = stat_fun, model = model)
+end_time <- Sys.time()
+print(enbs_0)
+print(difftime(end_time, start_time, units = "mins"))
 ```
 
 The trial now starts and we simulate data for full trial ($N = 2,000$) and conduct the first analysis ($n_{1k} = n_{2k} = 250$). The data generation relies on the "true" parameters which depend on the given scenario. Note that dyads are randomised with equal allocation (i.e., there will be $N/2$ dyads randomised to each strategy) and the simulated data is summarised as the sum of events at each analysis (i.e., $\sum_{i=1}^{N_{jk}} x_i$).
@@ -203,39 +225,39 @@ We consider the following two scenarios:
 We simulate data assuming $p_\text{II} = 0.10$ and $p_\text{MV} = 0.18$:
 
 ```{r}
-dat_scen1 <- sapply(1:4, function(x)
-                c("II" = rbinom(1, size = 500/2, prob = 0.10),
-                  "MV" = rbinom(1, size = 500/2, prob = 0.18)))
-dat_scen1 <- apply(dat_scen1, 1, cumsum)
-rownames(dat_scen1) <- paste("Analysis", 1:4)
-dat_scen1
+dat_1 <- sapply(1:4, function(x)
+            c("II" = rbinom(1, size = 500/2, prob = 0.10),
+              "MV" = rbinom(1, size = 500/2, prob = 0.18)))
+dat_1 <- apply(dat_1, 1, cumsum)
+rownames(dat_1) <- paste("Analysis", 1:4)
+dat_1
 ```
 
 For each analysis, we estimate the posterior distribution of the unknown parameters:
 
 ```{r}
-post_scen1 <- lapply(1:4, function(i)
-  matrix(c(post_fun(n_draws, x = dat_scen1[i,"II"], n_samp = 250*i),
-           post_fun(n_draws, x = dat_scen1[i,"MV"], n_samp = 250*i)),
+post_1 <- lapply(1:4, function(i)
+  matrix(c(rbeta(n_draws, 4 + dat_1[i,"II"], 20 + 250*i - dat_1[i,"II"]),
+           rbeta(n_draws, 4 + dat_1[i,"MV"], 20 + 250*i - dat_1[i,"MV"])),
          nrow = n_draws, ncol = 2, 
-         dimnames = list(NULL, c("II", "MV"))))
+         dimnames = list(NULL, c("p_II", "p_MV"))))
 ```
 
 At each analysis we can see how the reduction in uncertainty in the parameters propagates through to a reduction in uncertainty in the net benefit. We visualise this in Figure \@ref(fig:INMB-1). 
 
 ```{r, INMB-1, echo = FALSE, fig.cap = "Parameter posterior distributions and the distribution of incremental net monetary benefit (INMB) at each analysis in Scenario 1. The black dashed line at zero represents the decision point between the infant immunoprophylaxis (II) and maternal vaccination (MV) strategies. The red dashed lines represent the expected (mean) INMB."}
-post_scen1_long <- data.frame(x = unlist(post_scen1),
-                              Parameter = rep(rep(c("II", "MV"), each = n_draws), 4),
-                              Analysis = rep(paste("Analysis", 1:4), each = n_draws*2))
+post_1_long <- data.frame(x = unlist(post_1),
+                          Parameter = rep(rep(c("p_II", "p_MV"), each = n_draws), 4),
+                          Analysis = rep(paste("Analysis", 1:4), each = n_draws*2))
 
-p1 <- ggplot(post_scen1_long, aes(x = x, colour = Parameter)) +
+p1 <- ggplot(post_1_long, aes(x = x, colour = Parameter)) +
   facet_grid(Analysis ~ .) +
   geom_density() +
   scale_colour_manual(values = colours, labels = expression(p[II], p[MV])) +
   xlab("Posterior distribution") +
   theme(legend.position = "bottom")
 
-INMB_1 <- lapply(1:4, function(i) U(2, post_scen1[[i]], i + 1, 15) - U(1, post_scen1[[i]], i + 1, 15))
+INMB_1 <- lapply(1:4, function(i) U(2, post_1[[i]], i + 1, 15) - U(1, post_1[[i]], i + 1, 15))
 INMB_1 <- data.frame(x = unlist(INMB_1), 
                      E = rep(sapply(INMB_1, mean), each = n_draws),
                      Analysis = rep(paste("Analysis", 1:4), each = n_draws))
@@ -250,17 +272,55 @@ p2 <- ggplot(INMB_1, aes(x = x)) +
 grid.arrange(p1, p2, nrow = 1)
 ```
 
-For each analysis, given the updated posterior distribution of the parameters, we compute the ENBS to determine if the trial should continue:
+For each analysis, given the updated posterior distribution of the parameters, we compute the ENBP and ENBS to determine if the trial should continue:
 
 ```{r}
-ENBS_1 <- sapply(1:2, function(i) 
-             enb_sample(D = D, U = U, Theta = post_scen1[[i]],
-                        t = c(C = i + 1, A = i + 2, H = 15), 
-                        prop = prop, cost = gamma*500,
-                        samp_fun = samp_fun,
-                        stat_fun = stat_fun,
-                        model = model))
-ENBS_1
+start_time <- Sys.time()
+enbp_11 <- enb_perfect(D = D, U = U, Theta = post_1[[1]], t = t[2,], prop = prop, 
+                       cost = cost[2])
+end_time <- Sys.time()
+print(enbp_11)
+print(difftime(end_time, start_time, units = "mins"))
+
+start_time <- Sys.time()
+enbp_21 <- enb_perfect(D = D, U = U, Theta = post_1[[2]], t = t[3,], prop = prop, 
+                       cost = cost[3])
+end_time <- Sys.time()
+print(enbp_21)
+print(difftime(end_time, start_time, units = "mins"))
+
+start_time <- Sys.time()
+enbp_31 <- enb_perfect(D = D, U = U, Theta = post_1[[3]], t = t[4,], prop = prop, 
+                       cost = cost[4])
+end_time <- Sys.time()
+print(enbp_31)
+print(difftime(end_time, start_time, units = "mins"))
+```
+
+```{r}
+start_time <- Sys.time()
+enbs_11 <- enb_sample(D = D, U = U, Theta = post_1[[1]], t = t[2,], prop = prop, 
+                      cost = cost[2], samp_fun = samp_fun, 
+                      stat_fun = stat_fun, model = model)
+end_time <- Sys.time()
+print(enbs_11)
+print(difftime(end_time, start_time, units = "mins"))
+
+start_time <- Sys.time()
+enbs_21 <- enb_sample(D = D, U = U, Theta = post_1[[2]], t = t[3,], prop = prop, 
+                      cost = cost[3], samp_fun = samp_fun,
+                      stat_fun = stat_fun, model = model)
+end_time <- Sys.time()
+print(enbs_21)
+print(difftime(end_time, start_time, units = "mins"))
+
+start_time <- Sys.time()
+enbs_31 <- enb_sample(D = D, U = U, Theta = post_1[[3]], t = t[4,], prop = prop, 
+                      cost = cost[4], samp_fun = samp_fun,
+                      stat_fun = stat_fun, model = model)
+end_time <- Sys.time()
+print(enbs_31)
+print(difftime(end_time, start_time, units = "mins"))
 ```
 
 \clearpage
@@ -270,39 +330,39 @@ ENBS_1
 We simulate data assuming $p_\text{II} = 0.10$ and $p_\text{MV} = 0.12$:
 
 ```{r}
-dat_scen2 <- sapply(1:4, function(i)
-                c("II" = rbinom(1, size = 500/2, prob = 0.10),
-                  "MV" = rbinom(1, size = 500/2, prob = 0.12)))
-dat_scen2 <- apply(dat_scen2, 1, cumsum)
-rownames(dat_scen2) <- paste("Analysis", 1:4)
-dat_scen2
+dat_2 <- sapply(1:4, function(i)
+            c("II" = rbinom(1, size = 500/2, prob = 0.10),
+              "MV" = rbinom(1, size = 500/2, prob = 0.12)))
+dat_2 <- apply(dat_2, 1, cumsum)
+rownames(dat_2) <- paste("Analysis", 1:4)
+dat_2
 ```
 
 For each analysis, we estimate the posterior distribution of the unknown parameters:
 
 ```{r}
-post_scen2 <- lapply(1:4, function(i)
-  matrix(c(post_fun(n_draws, x = dat_scen2[i,"II"], n_samp = 250*i),
-           post_fun(n_draws, x = dat_scen2[i,"MV"], n_samp = 250*i)),
+post_2 <- lapply(1:4, function(i)
+  matrix(c(rbeta(n_draws, 4 + dat_2[i,"II"], 20 + 250*i - dat_2[i,"II"]),
+           rbeta(n_draws, 4 + dat_2[i,"MV"], 20 + 250*i - dat_2[i,"MV"])),
          nrow = n_draws, ncol = 2, 
-         dimnames = list(NULL, c("II", "MV"))))
+         dimnames = list(NULL, c("p_II", "p_MV"))))
 ```
 
 At each analysis we can see how the reduction in uncertainty in the parameters propagates through to a reduction in uncertainty in the net benefit. We visualise this in Figure \@ref(fig:INMB-2). 
 
 ```{r, INMB-2, echo = FALSE, fig.cap = "Parameter posterior distributions and the distribution of incremental net monetary benefit (INMB) at each analysis in Scenario 2. The black dashed line at zero represents the decision point between the infant immunoprophylaxis (II) and maternal vaccination (MV) strategies. The red dashed lines represent the expected (mean) INMB."}
-post_scen2_long <- data.frame(x = unlist(post_scen2),
-                              Parameter = rep(rep(c("II", "MV"), each = n_draws), 4),
-                              Analysis = rep(paste("Analysis", 1:4), each = n_draws*2))
+post_2_long <- data.frame(x = unlist(post_2),
+                          Parameter = rep(rep(c("p_II", "p_MV"), each = n_draws), 4),
+                          Analysis = rep(paste("Analysis", 1:4), each = n_draws*2))
 
-p1 <- ggplot(post_scen2_long, aes(x = x, colour = Parameter)) +
+p1 <- ggplot(post_2_long, aes(x = x, colour = Parameter)) +
   facet_grid(Analysis ~ .) +
   geom_density() +
   scale_colour_manual(values = colours, labels = expression(p[II], p[MV])) +
   xlab("Posterior distribution") +
   theme(legend.position = "bottom")
 
-INMB_2 <- lapply(1:4, function(i) U(2, post_scen2[[i]], i + 1, 15) - U(1, post_scen2[[i]], i + 1, 15))
+INMB_2 <- lapply(1:4, function(i) U(2, post_2[[i]], i + 1, 15) - U(1, post_2[[i]], i + 1, 15))
 INMB_2 <- data.frame(x = unlist(INMB_2), 
                      E = rep(sapply(INMB_2, mean), each = n_draws),
                      Analysis = rep(paste("Analysis", 1:4), each = n_draws))
@@ -317,35 +377,80 @@ p2 <- ggplot(INMB_2, aes(x = x)) +
 grid.arrange(p1, p2, nrow = 1)
 ```
 
-For each analysis, given the updated posterior distribution of the parameters, we compute the ENBS to determine if the trial should continue:
+For each analysis, given the updated posterior distribution of the parameters, we compute the ENBP and ENBS to determine if the trial should continue:
 
 ```{r}
-ENBS_2 <- sapply(1:2, function(i) 
-             enb_sample(D = D, U = U, Theta = post_scen2[[i]],
-                        t = c(C = i + 1, A = i + 2, H = 15), 
-                        prop = prop, cost = gamma*500,
-                        samp_fun = samp_fun,
-                        stat_fun = stat_fun,
-                        model = model))
-ENBS_2
+start_time <- Sys.time()
+enbp_12 <- enb_perfect(D = D, U = U, Theta = post_2[[1]], t = t[2,], prop = prop, 
+                       cost = cost[2])
+end_time <- Sys.time()
+print(enbp_12)
+print(difftime(end_time, start_time, units = "mins"))
+
+start_time <- Sys.time()
+enbp_22 <- enb_perfect(D = D, U = U, Theta = post_2[[2]], t = t[3,], prop = prop, 
+                       cost = cost[3])
+end_time <- Sys.time()
+print(enbp_22)
+print(difftime(end_time, start_time, units = "mins"))
+
+start_time <- Sys.time()
+enbp_32 <- enb_perfect(D = D, U = U, Theta = post_2[[3]], t = t[4,], prop = prop, 
+                       cost = cost[4])
+end_time <- Sys.time()
+print(enbp_32)
+print(difftime(end_time, start_time, units = "mins"))
+```
+
+```{r}
+start_time <- Sys.time()
+enbs_12 <- enb_sample(D = D, U = U, Theta = post_2[[1]], t = t[2,], prop = prop, 
+                      cost = cost[2], samp_fun = samp_fun, 
+                      stat_fun = stat_fun, model = model)
+end_time <- Sys.time()
+print(enbs_12)
+print(difftime(end_time, start_time, units = "mins"))
+
+start_time <- Sys.time()
+enbs_22 <- enb_sample(D = D, U = U, Theta = post_2[[2]], t = t[3,], prop = prop, 
+                      cost = cost[3], samp_fun = samp_fun,
+                      stat_fun = stat_fun, model = model)
+end_time <- Sys.time()
+print(enbs_22)
+print(difftime(end_time, start_time, units = "mins"))
+
+start_time <- Sys.time()
+enbs_32 <- enb_sample(D = D, U = U, Theta = post_2[[3]], t = t[4,], prop = prop, 
+                      cost = cost[4], samp_fun = samp_fun,
+                      stat_fun = stat_fun, model = model)
+end_time <- Sys.time()
+print(enbs_32)
+print(difftime(end_time, start_time, units = "mins"))
 ```
 
 \clearpage
 
 # Simulations
 
-In this section we investigate the long run performance of the value-driven adaptive design for the RSV case study. We generated 10,000 simulated trials for each scenario. We visualise the proportion of trials that stopped due to the value of information criterion in Figure \@ref(fig:evsi-prop).
+In this section we investigate the long run performance of the value-driven adaptive design for the RSV case study. We generated 10,000 simulated trials for each scenario. We visualise the proportion of trials that stopped due to ENBS < 0 in Figure \@ref(fig:enbs-prop) and the mean and 95% central interval for the ENBP and ENBS in Figure \@ref(fig:enbp-enbs).
 
-```{r, evsi-prop, echo = FALSE, fig.cap = "Proportion of trials at each analysis that stopped due to the value of information criterion, by scenario."}
-sims$Stop <- sims$ENBS < 0
-sims_summ <- sapply(unique(sims$Scenario), function(scenario) 
-               sapply(unique(sims$Analysis), function(analysis) 
-                  mean(sims[sims$Scenario == scenario & sims$Analysis == analysis,]$Stop)))
-sims_summ <- data.frame(Prop = as.vector(sims_summ),
-                        Scenario = rep(unique(sims$Scenario), each = length(unique(sims$Analysis))),
-                        Analysis = as.factor(rep(0:2, length(unique(sims$Scenario)))))
+```{r, enbs-prop, echo = FALSE, fig.cap = "Proportion of trials at each analysis that stopped due to the value of information criterion, by scenario."}
+sims_prop <- sims[Measure == "ENBS", .(Stop = ifelse(any(Stop), min(which(Stop)), NA_integer_)), by = .(Scenario, Simulation)]
+sims_prop[, `:=`(
+  Analysis_0 = ifelse(Stop <= 1 & !is.na(Stop), TRUE, FALSE),
+  Analysis_1 = ifelse(Stop <= 2 & !is.na(Stop), TRUE, FALSE),
+  Analysis_2 = ifelse(Stop <= 3 & !is.na(Stop), TRUE, FALSE),
+  Analysis_3 = ifelse(Stop <= 4 & !is.na(Stop), TRUE, FALSE)
+)]
+sims_prop <- melt.data.table(sims_prop, 
+                             id.vars = c("Scenario", "Simulation"), 
+                             measure.vars = paste0("Analysis_", 0:3),
+                             value.name = "Stop",
+                             variable.name = "Analysis")
+sims_prop <- sims_prop[, .(Prop = mean(Stop)), by = .(Scenario, Analysis)]
+sims_prop[, Analysis := factor(Analysis, labels = 0:3)]
 
-ggplot(sims_summ, aes(x = Analysis, y = Prop, group = Scenario, colour = Scenario)) +
+ggplot(sims_prop, aes(x = Analysis, y = Prop, group = Scenario, colour = Scenario)) +
   geom_line() +
   scale_y_continuous("Proportion of trials stopped", limits = c(0,1)) +
   scale_colour_manual("", values = colours) +
@@ -353,22 +458,56 @@ ggplot(sims_summ, aes(x = Analysis, y = Prop, group = Scenario, colour = Scenari
   theme(legend.position = "bottom")
 ```
 
+```{r, enbp-enbs, echo = FALSE, fig.cap = "Median and 95% central quantile for the ENBP and ENBS, by scenario."}
+sims_summ <- sims[Measure %in% c("ENBP", "ENBS"),
+                  .(mean = median(Value), lower = quantile(Value, 0.025), upper = quantile(Value, 0.975)), by = .(Measure, Scenario, Analysis)]
+sims_summ[, Analysis := factor(Analysis, labels = 0:3)]
+
+ggplot(sims_summ, aes(x = Analysis, y = mean, ymin = lower, ymax = upper, colour = Measure, group = Measure)) +
+  facet_wrap(~Scenario) +
+  geom_pointrange(position = position_dodge(width = 0.25)) +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  scale_colour_manual("", values = colours) +
+  scale_y_continuous("Value (1 million AUD)", n.breaks = 6) +
+  theme_bw() +
+  theme(legend.position = "bottom")
+```
+
+The median and interquartile range for the run times in seconds for each scenario are:
+
+```{r}
+sims[Measure == "RUN TIME",
+     .(median = median(Value)*60, 
+       lower = quantile(Value, 0.25)*60, 
+       upper = quantile(Value, 0.75)*60),
+     by = Scenario]
+```
+
 The mean sample sizes under each design and scenario are:
 
 ```{r}
-sims_ss <- sapply(unique(sims$Scenario), function(scenario) 
-              sapply(unique(sims$Simulation), function(sim){
-                 dat <- sims[sims$Scenario == scenario & sims$Simulation == sim,]
-                 if(dat[dat$Analysis == "Analysis 0",]$Stop){
-                   ss <- 0
-                 } else if(dat[dat$Analysis == "Analysis 1",]$Stop){
-                   ss <- 1000
-                 } else if(dat[dat$Analysis == "Analysis 2",]$Stop){
-                   ss <- 1500
-                 } else {
-                   ss <- 2000
-                 }
-                 ss
-}))
-round(colMeans(sims_ss))
+sims_ss <- sims[Measure == "ENBS", 
+                .(SS = ifelse(any(Stop), 
+                              c(0,1000,1500,2000)[min(which(Stop))], 
+                              2000)),
+                by = .(Scenario, Simulation)]
+sims_ss[, .(`Mean Sample Size` = mean(SS)), by = Scenario]
+```
+
+\clearpage
+
+# Correction term
+
+For completeness, we compute the correction term for each analysis in each scenario. Adding the correction term allows us to estimate ENBS* instead of ENBS (i.e., the expected value of proceeding through to the next analysis with the *possibility* of continuing to the following analysis).
+
+```{r}
+corr <- data.table(Value = unlist(corr), 
+                   Variable = rep(c("ENBS*", "Runtime (mins)"), 5),
+                   Scenario = c(rep("-", 2), 
+                                rep(rep(paste("Scenario", 1:2), each = 2), 2)),
+                   Analysis = rep(paste("Analysis", 0:2), times = c(2,4,4)))
+corr <- dcast.data.table(corr, 
+                         Scenario + Analysis ~ Variable,
+                         value.var = "Value")
+corr
 ```
