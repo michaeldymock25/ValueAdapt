@@ -2,7 +2,6 @@
 ## this script contains the correction computed for the RSV case study (RSV.Rmd)
 
 library(ValueAdapt)
-library(here)
 
 set.seed(12856421)
 
@@ -157,4 +156,4 @@ out <- list(enbs_0      = enbs_0,
             enbs_22     = enbs_22,
             run_time_22 = run_time_22)
 
-saveRDS(out, here("Examples/RSV/RSV_correction.rds"))
+saveRDS(out, "Examples/RSV/RSV_correction.rds")

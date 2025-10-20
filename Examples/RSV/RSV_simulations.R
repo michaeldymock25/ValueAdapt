@@ -2,7 +2,6 @@
 ## this script contains the simulations for the RSV case study (RSV.Rmd)
 
 library(ValueAdapt)
-library(here)
 
 set.seed(12856421)
 
@@ -33,10 +32,10 @@ sims <- list(`Scenario 1` = sim_betabinomial_trial(D = D, U = U, Theta = c(0.10,
                                                    n_sims = n_sims, n_cores = n_cores))
 
 sims <- data.frame(Value = unlist(sims),
-                   Measure = rep(rep(c("ENBP", "ENBS", "RUN TIME"), each = n_analyses*n_sims), 2),
-                   Scenario = rep(paste("Scenario", 1:2), each = n_analyses*n_sims*3),
-                   Analysis = rep(paste("Analysis", 0:(n_analyses - 1)), 2*n_sims*3),
-                   Simulation = rep(rep(paste("Simulation", 1:n_sims), each = n_analyses), 2*3))
+                   Measure = rep(rep(c("DEC", "ENBP", "ENBS", "RUN TIME"), each = n_analyses*n_sims), 2),
+                   Scenario = rep(paste("Scenario", 1:2), each = n_analyses*n_sims*4),
+                   Analysis = rep(paste("Analysis", 0:(n_analyses - 1)), 2*n_sims*4),
+                   Simulation = rep(rep(paste("Simulation", 1:n_sims), each = n_analyses), 2*4))
 rownames(sims) <- NULL
 
-saveRDS(sims, here("Examples/RSV/RSV_simulations.rds"))
+saveRDS(sims, "Examples/RSV/RSV_simulations.rds")

@@ -17,7 +17,7 @@
 #' @param K Number of outer Monte Carlo loops. Only required for the Monte Carlo approximation method.
 #' @param apply_correct If TRUE, a correction for the underestimation of the expected net benefit of sampling is applied. Defaults to FALSE to apply no correction.
 #' @param n_cores Number of cores to use if running simulations in parallel. Note that the num_cores and threads arguments of enb_sample() is set to one. Deafults to one.
-#' @return Matrix containing the expected value of sample information computed at each analysis for each simulated trial
+#' @return List containing arrays of the chosen decision options (DEC), expected net benefit of perfect information (ENBP), expected net benefit of sample information (ENBS) and run time (RUN_TIME) computed at each analysis for each simulated trial
 #' @examples
 #' D <- 2
 #' U <- function(d, Theta, t_1, t_2) sum(1.05^(1-(t_1:t_2)))*Theta[,d]
@@ -109,19 +109,25 @@ sim_betabinomial_trial <- function(D, U, Theta, n_analyses, t, prop, cost, prior
                        } else {
                          correct <- NULL
                        }
-                       enbp <- enb_perfect(D = D, U = U, Theta = psa[,,analysis,sim], t = t[analysis,], prop = prop, cost = cost[analysis])
+                       Theta_tmp <- psa[,,analysis,sim]
+                       t_tmp <- t[analysis,]
+                       dec <- which.max(colMeans(sapply(1:D, function(d) U(d, Theta_tmp, t_tmp["C"] + 1, t_tmp["H"]))))
+                       enbp <- enb_perfect(D = D, U = U, Theta = Theta_tmp, t = t_tmp, prop = prop, cost = cost[analysis])
                        start_time <- Sys.time()
-                       enbs <- enb_sample(D = D, U = U, Theta = psa[,,analysis,sim], t = t[analysis,],
-                                          prop = prop, cost = cost[analysis], method = method, K = K,
-                                          samp_args = samp_args, samp_fun = samp_fun, post_args = post_args, post_fun = post_fun,
+                       enbs <- enb_sample(D = D, U = U, Theta = Theta_tmp, t = t_tmp, prop = prop, cost = cost[analysis], method = method,
+                                          K = K, samp_args = samp_args, samp_fun = samp_fun, post_args = post_args, post_fun = post_fun,
                                           stat_fun = function(x) x, model = paste0("s(", paste0("d", 1:D), ")", collapse = " + "),
                                           correct = correct)
                        end_time <- Sys.time()
                        run_time <- difftime(end_time, start_time, units = "mins")
-                       return(list(enbp = enbp, enbs = enbs, run_time = run_time))
+                       return(list(dec = dec, enbp = enbp, enbs = enbs, run_time = run_time))
                     })
                   },
                   mc.cores = n_cores)
+
+  DEC <- array(sapply(ENB, function(analysis) sapply(analysis, function(x) x$dec)),
+                      dim = c(n_analyses, n_sims),
+                      dimnames = list("Analysis" = 0:(n_analyses - 1), "Simulation" = 1:n_sims))
 
   ENB_PERFECT <- array(sapply(ENB, function(analysis) sapply(analysis, function(x) x$enbp)),
                        dim = c(n_analyses, n_sims),
@@ -135,5 +141,5 @@ sim_betabinomial_trial <- function(D, U, Theta, n_analyses, t, prop, cost, prior
                     dim = c(n_analyses, n_sims),
                     dimnames = list("Analysis" = 0:(n_analyses - 1), "Simulation" = 1:n_sims))
 
-  return(list(ENBP = ENB_PERFECT, ENBS = ENB_SAMPLE, RUN_TIME = RUN_TIME))
+  return(list(DEC = DEC, ENBP = ENB_PERFECT, ENBS = ENB_SAMPLE, RUN_TIME = RUN_TIME))
 }
