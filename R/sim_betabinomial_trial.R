@@ -20,7 +20,7 @@
 #' @return List containing arrays of the chosen decision options (DEC), expected net benefit of perfect information (ENBP), expected net benefit of sample information (ENBS) and run time (RUN_TIME) computed at each analysis for each simulated trial
 #' @examples
 #' D <- 2
-#' U <- function(d, Theta, t_1, t_2) sum(1.05^(1-(t_1:t_2)))*Theta[,d]
+#' U <- function(d, Theta, t_1, t_2) sum(1.05^(-(t_1:(t_2-1))))*Theta[,d]
 #' Theta <- c(0.5, 0.6)
 #' n_analyses <- 3
 #' t <- matrix(c(0, 1, 15,
@@ -111,7 +111,7 @@ sim_betabinomial_trial <- function(D, U, Theta, n_analyses, t, prop, cost, prior
                        }
                        Theta_tmp <- psa[,,analysis,sim]
                        t_tmp <- t[analysis,]
-                       dec <- which.max(colMeans(sapply(1:D, function(d) U(d, Theta_tmp, t_tmp["C"] + 1, t_tmp["H"]))))
+                       dec <- which.max(colMeans(sapply(1:D, function(d) U(d, Theta_tmp, t_tmp["C"], t_tmp["H"]))))
                        enbp <- enb_perfect(D = D, U = U, Theta = Theta_tmp, t = t_tmp, prop = prop, cost = cost[analysis])
                        start_time <- Sys.time()
                        enbs <- enb_sample(D = D, U = U, Theta = Theta_tmp, t = t_tmp, prop = prop, cost = cost[analysis], method = method,

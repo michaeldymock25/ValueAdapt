@@ -21,7 +21,7 @@
 #' # two parameters (one parameter of interest), two decision options
 #' D <- 2
 #' U <- function(d, Theta_int, Theta_rem, t_1, t_2)
-#'   sum(1.05^(1-(t_1:t_2)))*((d == 1)*Theta_int + (d == 2)*Theta_rem)
+#'   sum(1.05^(-(t_1:(t_2-1))))*((d == 1)*Theta_int + (d == 2)*Theta_rem)
 #' N <- 10000
 #' Theta_int <- matrix(rbeta(N, 2, 3), nrow = N, ncol = 1, dimnames = list(NULL, "theta_A"))
 #' Theta_rem <- matrix(rbeta(N, 2, 3), nrow = N, ncol = 1, dimnames = list(NULL, "theta_B"))
@@ -37,9 +37,9 @@
 #' # three parameters (two parameters of interest), three decision options
 #' D <- 3
 #' U <- function(d, Theta_int, Theta_rem, t_1, t_2)
-#'   sum(1.05^(1-(t_1:t_2)))*((d == 1)*Theta_int[,"theta_A"] +
-#'                            (d == 2)*Theta_int[,"theta_B"] +
-#'                            (d == 3)*Theta_rem)
+#'   sum(1.05^(-(t_1:(t_2-1))))*((d == 1)*Theta_int[,"theta_A"] +
+#'                               (d == 2)*Theta_int[,"theta_B"] +
+#'                               (d == 3)*Theta_rem)
 #' N <- 10000
 #' Theta <- matrix(c(rbeta(N, 2, 3), rbeta(N, 2, 3), rbeta(N, 2, 3)),
 #'                 nrow = N, ncol = 3, dimnames = list(NULL, c("theta_A", "theta_B", "theta_C")))
@@ -63,14 +63,14 @@ enb_partial_perfect <- function(D, U, Theta_int, Theta_rem, t, prop, cost, metho
 
   ## first compute the expected value of choosing now
 
-  NB_now <- sapply(1:D, function(d) U(d, Theta_int, Theta_rem, t["C"] + 1, t["H"]))
+  NB_now <- sapply(1:D, function(d) U(d, Theta_int, Theta_rem, t["C"], t["H"]))
   INB_now <- NB_now - NB_now[,1]
   value_now <- max(colMeans(INB_now))
 
   ## second compute the expected value during the trial
 
   if(sum(prop) != 1) stop("prop must sum to one")
-  NB_during <- sapply(1:D, function(d) U(d, Theta_int, Theta_rem, t["C"] + 1, t["A"]))
+  NB_during <- sapply(1:D, function(d) U(d, Theta_int, Theta_rem, t["C"], t["A"]))
   value_during <- mean(NB_during%*%prop - NB_during[,1])
 
   ## third compute the expected value of choosing after the trial
@@ -84,7 +84,7 @@ enb_partial_perfect <- function(D, U, Theta_int, Theta_rem, t, prop, cost, metho
       cond_args_tmp <- c(cond_args, D = D, N = N, Theta_int_redraw[k,])
       Theta_rem_tmp <- cond_fun(cond_args_tmp)
       Theta_int_tmp <- do.call(rbind, lapply(1:N, function(n) Theta_int_redraw[k,]))
-      NB_tmp <- sapply(1:D, function(d) U(d, Theta_int_tmp, Theta_rem_tmp, t["A"] + 1, t["H"]))
+      NB_tmp <- sapply(1:D, function(d) U(d, Theta_int_tmp, Theta_rem_tmp, t["A"], t["H"]))
       INB_tmp <- NB_tmp - NB_tmp[,1]
       max(colMeans(INB_tmp))
     })
@@ -97,7 +97,7 @@ enb_partial_perfect <- function(D, U, Theta_int, Theta_rem, t, prop, cost, metho
     return(ENB_PARTIAL_PERFECT)
 
   } else if(method == "NP"){
-    NB <- sapply(1:D, function(d) U(d, Theta_int, Theta_rem, t["A"] + 1, t["H"]))
+    NB <- sapply(1:D, function(d) U(d, Theta_int, Theta_rem, t["A"], t["H"]))
     INB <- NB - NB[,1]
     INB_partial <- matrix(data = NA, nrow = N, ncol = D)
     INB_partial[,1] <- 0

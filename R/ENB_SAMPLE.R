@@ -29,7 +29,7 @@
 #' @examples
 #' # one parameter, two decision options
 #' D <- 2
-#' U <- function(d, Theta, t_1, t_2) sum(1.05^(1-(t_1:t_2)))*(-1)^(d-1)*(Theta - 0.4)
+#' U <- function(d, Theta, t_1, t_2) sum(1.05^(-(t_1:(t_2-1))))*(-1)^(d-1)*(Theta - 0.4)
 #' N <- 10000
 #' Theta <- matrix(rbeta(N, 2, 3), nrow = N, ncol = 1, dimnames = list(NULL, "theta"))
 #' t <- c(C = 0, A = 1, H = 15)
@@ -44,7 +44,7 @@
 #'
 #' # two parameters (one parameter of interest), two decision options
 #' D <- 2
-#' U <- function(d, Theta, t_1, t_2) sum(1.05^(1-(t_1:t_2)))*Theta[,d]
+#' U <- function(d, Theta, t_1, t_2) sum(1.05^(-(t_1:(t_2-1))))*Theta[,d]
 #' N <- 10000
 #' Theta <- matrix(c(rbeta(N, 2, 3), rbeta(N, 2, 3)),
 #'                 nrow = N, ncol = 2, dimnames = list(NULL, c("theta_A", "theta_B")))
@@ -61,7 +61,7 @@
 #' enb_sample(D, U, Theta, t, prop, cost, method = "NP", samp_fun = samp_fun, stat_fun = stat_fun,
 #'            model = "s(x)")
 #' U_enbppi <- function(d, Theta_int, Theta_rem, t_1, t_2)
-#'   sum(1.05^(1-(t_1:t_2)))*((d == 1)*Theta_int + (d == 2)*Theta_rem)
+#'   sum(1.05^(-(t_1:(t_2-1))))*((d == 1)*Theta_int + (d == 2)*Theta_rem)
 #' Theta_int <- matrix(Theta[,"theta_A"], nrow = N, ncol = 1, dimnames = list(NULL, "theta_A"))
 #' Theta_rem <- matrix(Theta[,"theta_B"], nrow = N, ncol = 1, dimnames = list(NULL, "theta_B"))
 #' out <- enb_partial_perfect(D, U_enbppi, Theta_int, Theta_rem, t, prop, cost, method = "NP",
@@ -71,7 +71,7 @@
 #'
 #' # three parameters (two parameters of interest), three decision options
 #' D <- 3
-#' U <- function(d, Theta, t_1, t_2) sum(1.05^(1-(t_1:t_2)))*Theta[,d]
+#' U <- function(d, Theta, t_1, t_2) sum(1.05^(-(t_1:(t_2-1))))*Theta[,d]
 #' N <- 10000
 #' Theta <- matrix(c(rbeta(N, 2, 3), rbeta(N, 2, 3), rbeta(N, 2, 3)),
 #'                 nrow = N, ncol = 3, dimnames = list(NULL, c("theta_A", "theta_B", "theta_C")))
@@ -90,9 +90,9 @@
 #' enb_sample(D, U, Theta, t, prop, cost, method = "NP", samp_fun = samp_fun, stat_fun = stat_fun,
 #'            model = "te(x_A, x_B)")
 #' U_enbppi <- function(d, Theta_int, Theta_rem, t_1, t_2)
-#'   sum(1.05^(1-(t_1:t_2)))*((d == 1)*Theta_int[,"theta_A"] +
-#'                            (d == 2)*Theta_int[,"theta_B"] +
-#'                            (d == 3)*Theta_rem)
+#'   sum(1.05^(-(t_1:(t_2-1))))*((d == 1)*Theta_int[,"theta_A"] +
+#'                               (d == 2)*Theta_int[,"theta_B"] +
+#'                               (d == 3)*Theta_rem)
 #' Theta_int <- Theta[,c("theta_A", "theta_B")]
 #' Theta_rem <- matrix(Theta[,"theta_C"], nrow = N, ncol = 1, dimnames = list(NULL, "theta_C"))
 #' out <- enb_partial_perfect(D, U_enbppi, Theta_int, Theta_rem, t, prop, cost, method = "NP",
@@ -112,14 +112,14 @@ enb_sample <- function(D, U, Theta, t, prop, cost, method = "NP", K = 10000,
 
   ## first compute the expected value of choosing now
 
-  NB_now <- sapply(1:D, function(d) U(d, Theta, t["C"] + 1, t["H"]))
+  NB_now <- sapply(1:D, function(d) U(d, Theta, t["C"], t["H"]))
   INB_now <- NB_now - NB_now[,1]
   value_now <- max(colMeans(INB_now))
 
   ## second compute the expected value during the trial
 
   if(sum(prop) != 1) stop("prop must sum to one")
-  NB_during <- sapply(1:D, function(d) U(d, Theta, t["C"] + 1, t["A"]))
+  NB_during <- sapply(1:D, function(d) U(d, Theta, t["C"], t["A"]))
   value_during <- mean(NB_during%*%prop - NB_during[,1])
 
   ## third compute the expected value of choosing after the trial
@@ -140,13 +140,13 @@ enb_sample <- function(D, U, Theta, t, prop, cost, method = "NP", K = 10000,
                           },
                           mc.cores = num_cores)
     SI <- sapply(1:K, function(k){
-      NB_tmp <- sapply(1:D, function(d) U(d, Theta_tmp[[k]], t["A"] + 1, t["H"]))
+      NB_tmp <- sapply(1:D, function(d) U(d, Theta_tmp[[k]], t["A"], t["H"]))
       INB_tmp <- NB_tmp - NB_tmp[,1]
       max(colMeans(INB_tmp))
     })
     value_after <- mean(SI)
   } else if(method == "NP"){
-    NB <- sapply(1:D, function(d) U(d, Theta, t["A"] + 1, t["H"]))
+    NB <- sapply(1:D, function(d) U(d, Theta, t["A"], t["H"]))
     INB <- NB - NB[,1]
     samp_out <- lapply(1:N, function(n){
                    Theta_tmp <- Theta[n,]
@@ -161,7 +161,7 @@ enb_sample <- function(D, U, Theta, t, prop, cost, method = "NP", K = 10000,
     for(d in 2:D) g_hat[,d] <- gam(update(formula(INB[, d] ~ .), formula(paste(".~", model))), data = as.data.frame(summ_stats))$fitted
     value_after <- mean(apply(g_hat, 1, max))
   } else if(method == "MM"){
-    NB <- sapply(1:D, function(d) U(d, Theta, t["A"] + 1, t["H"]))
+    NB <- sapply(1:D, function(d) U(d, Theta, t["A"], t["H"]))
     INB <- NB - NB[,1]
     Theta_redraw <- as.matrix(gen.quantiles(parameter = colnames(Theta), param.mat = Theta, Q = Q))
     samp_out <- lapply(1:Q, function(q){
@@ -175,7 +175,7 @@ enb_sample <- function(D, U, Theta, t, prop, cost, method = "NP", K = 10000,
                           },
                           mc.cores = num_cores)
     var_est <- lapply(1:Q, function(q){
-      NB_tmp <- sapply(1:D, function(d) U(d, Theta_tmp[[q]], t["A"] + 1, t["H"]))
+      NB_tmp <- sapply(1:D, function(d) U(d, Theta_tmp[[q]], t["A"], t["H"]))
       INB_tmp <- NB_tmp - NB_tmp[,1]
       var(INB_tmp[,-1])
     })

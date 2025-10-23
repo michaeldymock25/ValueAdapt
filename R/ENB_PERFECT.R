@@ -11,7 +11,7 @@
 #' @examples
 #' # one parameter, two decision options
 #' D <- 2
-#' U <- function(d, Theta, t_1, t_2) sum(1.05^(1-(t_1:t_2)))*(-1)^(d-1)*(Theta - 0.4)
+#' U <- function(d, Theta, t_1, t_2) sum(1.05^(-(t_1:(t_2-1))))*(-1)^(d-1)*(Theta - 0.4)
 #' N <- 10000
 #' Theta <- matrix(rbeta(N, 2, 3), nrow = N, ncol = 1, dimnames = list(NULL, "theta"))
 #' t <- c(C = 0, A = 1, H = 15)
@@ -21,7 +21,7 @@
 #'
 #' # two parameters, two decision options
 #' D <- 2
-#' U <- function(d, Theta, t_1, t_2) sum(1.05^(1-(t_1:t_2)))*Theta[,d]
+#' U <- function(d, Theta, t_1, t_2) sum(1.05^(-(t_1:(t_2-1))))*Theta[,d]
 #' N <- 10000
 #' Theta <- matrix(c(rbeta(N, 2, 3), rbeta(N, 2, 3)),
 #'                 nrow = N, ncol = 2, dimnames = list(NULL, c("theta_A", "theta_B")))
@@ -32,7 +32,7 @@
 #'
 #' # three parameters, three decision options
 #' D <- 3
-#' U <- function(d, Theta, t_1, t_2) sum(1.05^(1-(t_1:t_2)))*Theta[,d]
+#' U <- function(d, Theta, t_1, t_2) sum(1.05^(-(t_1:(t_2-1))))*Theta[,d]
 #' N <- 10000
 #' Theta <- matrix(c(rbeta(N, 2, 3), rbeta(N, 2, 3), rbeta(N, 2, 3)),
 #'                 nrow = N, ncol = 3, dimnames = list(NULL, c("theta_A", "theta_B", "theta_C")))
@@ -46,19 +46,19 @@ enb_perfect <- function(D, U, Theta, t, prop, cost){
 
   ## first compute the expected value of choosing now
 
-  NB_now <- sapply(1:D, function(d) U(d, Theta, t["C"] + 1, t["H"]))
+  NB_now <- sapply(1:D, function(d) U(d, Theta, t["C"], t["H"]))
   INB_now <- NB_now - NB_now[,1]
   value_now <- max(colMeans(INB_now))
 
   ## second compute the expected value during the trial
 
   if(sum(prop) != 1) stop("prop must sum to one")
-  NB_during <- sapply(1:D, function(d) U(d, Theta, t["C"] + 1, t["A"]))
+  NB_during <- sapply(1:D, function(d) U(d, Theta, t["C"], t["A"]))
   value_during <- mean(NB_during%*%prop - NB_during[,1])
 
   ## third compute the expected value of choosing after the trial
 
-  NB_after <- sapply(1:D, function(d) U(d, Theta, t["A"] + 1, t["H"]))
+  NB_after <- sapply(1:D, function(d) U(d, Theta, t["A"], t["H"]))
   INB_after <- NB_after - NB_after[,1]
   value_after <- mean(apply(INB_after, 1, max))
 

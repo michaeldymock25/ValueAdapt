@@ -8,7 +8,7 @@ set.seed(12856421)
 D <- 2
 U <- function(d, Theta, t_1, t_2, lambda = 5200){
   cost <- c(590, 330)
-  constant <- 1/1000000*sum(1.05^(1-(t_1:t_2)))*300000
+  constant <- 1/1000000*sum(1.05^(-(t_1:(t_2-1))))*300000
   constant*(lambda*(1 - Theta[,d]) - cost[d])
 }
 t <- matrix(c(0, 2, 15,

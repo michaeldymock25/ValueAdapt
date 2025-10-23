@@ -96,8 +96,8 @@ Of interest to the policymaker is the trade-off between the difference in effect
 We assume that in Australia there are on average 300,000 births per year, the willingness to pay to prevent each MA-RSV is $\lambda$ and that there are no other RSV related healthcare costs (i.e., we ignore costs of parental work absenteeism and potential long term respiratory consequences such as asthma). The individual costs for II and MV are \$590 and \$330, respectively. Considering a $t_H = 15$ year horizon with an annual discount rate of 5%, the net benefit functions per 1 million Australian dollars are:
 
 \begin{align*}
-\text{NB}(\text{II}, \boldsymbol{\Theta}, t_1, t_2) &= \frac{1}{1,000,000} \times \sum_{t=t_1}^{t_2} 1.05^{1-t} \times 300,000 \times (-\lambda p_\text{II} - 590) \\
-\text{NB}(\text{MV}, \boldsymbol{\Theta}, t_1, t_2) &= \frac{1}{1,000,000} \times \sum_{t=t_1}^{t_2} 1.05^{1-t} \times 300,000 \times (-\lambda p_\text{MV} - 330)
+\text{NB}(\text{II}, \boldsymbol{\Theta}, t_1, t_2) &= \frac{1}{1,000,000} \times \sum_{t=t_1}^{t_2-1} 1.05^{-t} \times 300,000 \times (-\lambda p_\text{II} - 590) \\
+\text{NB}(\text{MV}, \boldsymbol{\Theta}, t_1, t_2) &= \frac{1}{1,000,000} \times \sum_{t=t_1}^{t_2-1} 1.05^{-t} \times 300,000 \times (-\lambda p_\text{MV} - 330)
 \end{align*}
 
 We define the incremental net monetary benefit (INMB) as the difference between the net benefit functions (i.e., $\text{INMB}(\boldsymbol{\Theta}, t_1, t_2) = \text{NB}(\text{MV}, \boldsymbol{\Theta}, t_1, t_2) - \text{NB}(\text{II}, \boldsymbol{\Theta}, t_1, t_2)$). Here we that MV will be more cost effective than II if $p_\text{MV} - p_\text{II} < \frac{590 - 330}{\lambda}$ (we assume that there are no costs to change the strategy from II to MV). We assume the willingness to pay parameter to be $\lambda = \$5,200$ so that MV will be the optimal decision if $p_\text{MV} - p_\text{II} < 5\%$ and II will be the optimal decision, otherwise.  It is assumed that II is the current implemented standard practice with 100% uptake (i.e., $\boldsymbol{p} = \{1,0\}$, not to be confused with the parameters $\boldsymbol{\Theta} = \{p_\text{II},p_\text{MV}\}$). 
@@ -108,7 +108,7 @@ The utility function required to implement the net benefit functions and some ot
 D <- 2
 U <- function(d, Theta, t_1, t_2, lambda = 5200){
   cost <- c(590, 330)
-  constant <- 1/1000000*sum(1.05^(1-(t_1:t_2)))*300000
+  constant <- 1/1000000*sum(1.05^(-(t_1:(t_2-1))))*300000
   constant*(lambda*(1 - Theta[,d]) - cost[d])
 }
 prop <- c(1,0)
@@ -483,7 +483,7 @@ sims[Measure == "RUN TIME",
      by = Scenario]
 ```
 
-The mean sample sizes under each design and scenario are:
+The mean sample sizes under each scenario are:
 
 ```{r}
 sims_ss <- sims[Measure == "ENBS", 
@@ -492,6 +492,17 @@ sims_ss <- sims[Measure == "ENBS",
                               2000)),
                 by = .(Scenario, Simulation)]
 sims_ss[, .(`Mean Sample Size` = mean(SS)), by = Scenario]
+```
+
+The proportion of trials that chose the optimal decision option at the time of stopping for each scenario are:
+
+```{r}
+sims_dec <- sims[Measure == "ENBS", 
+                 .(Analysis = paste("Analysis", ifelse(any(Stop), min(which(Stop)), as.integer(3)))),
+                 by = .(Scenario, Simulation)]
+sims_dec <- merge(sims_dec, sims[Measure == "DEC", .(Scenario, Simulation, Analysis, Value)], by = c("Scenario", "Simulation", "Analysis"))
+sims_dec[, correct := ifelse(Scenario == "Scenario 1", Value == 1, Value == 2)]
+sims_dec[, .(prop = mean(correct)), by = Scenario]
 ```
 
 \clearpage
